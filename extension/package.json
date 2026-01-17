@@ -1,52 +1,107 @@
 {
-  "name": "squeeze",
-  "displayName": "Squeeze",
-  "description": "Compress terminal logs and ask Copilot",
-  "version": "0.0.1",
-  "publisher": "trae-user",
-  "engines": {
-    "vscode": "^1.90.0"
-  },
-  "categories": [
-    "AI",
-    "Chat"
-  ],
-  "activationEvents": [],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "chatParticipants": [
-      {
-        "id": "logsqueeze.squeeze",
-        "name": "squeeze",
-        "description": "Squeeze terminal logs and analyze with Copilot",
-        "isSticky": true,
-        "commands": [
-          {
-            "name": "debug",
-            "description": "Analyze the terminal logs for errors"
-          }
-        ]
-      }
-    ]
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.90.0",
-    "@types/node": "20.x",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.56.0",
-    "typescript": "^5.3.3",
-    "@vscode/test-cli": "^0.0.4",
-    "@vscode/test-electron": "^2.3.9"
-  },
-  "dependencies": {
-  }
+	"name": "squeeze",
+	"displayName": "Squeeze",
+	"description": "Compress terminal logs and ask Copilot",
+	"version": "0.0.1",
+	"publisher": "trae-user",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"categories": [
+		"AI",
+		"Chat"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "squeeze",
+				"name": "squeeze",
+				"description": "Compress context files before sending to LLM",
+				"isSticky": true
+			}
+		],
+		"commands": [
+			{
+				"command": "squeeze.compressAndSend",
+				"title": "Compress and Send to LLM",
+				"category": "Squeeze"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "squeeze.compressAndSend",
+				"key": "enter",
+				"when": "chatInputFocus && !suggestWidgetVisible"
+			}
+		],
+		"configuration": {
+			"title": "Squeeze",
+			"properties": {
+				"squeeze.compressPrompt": {
+					"type": "boolean",
+					"default": false,
+					"description": "Compress the chat prompt before sending to LLM"
+				},
+				"squeeze.compressFiles": {
+					"type": "boolean",
+					"default": true,
+					"description": "Compress files from context window before sending to LLM"
+				},
+				"squeeze.compressTerminalOutput": {
+					"type": "boolean",
+					"default": false,
+					"description": "Compress terminal output before sending to LLM"
+				},
+				"squeeze.compressionModel": {
+					"type": "string",
+					"default": "default",
+					"description": "Compression model to use (sent to API)"
+				},
+				"squeeze.apiEndpoint": {
+					"type": "string",
+					"default": "http://localhost:8000/compress",
+					"description": "API endpoint URL for compression service"
+				},
+				"squeeze.targetLLM": {
+					"type": "string",
+					"enum": [
+						"copilot-gpt-3.5-turbo",
+						"copilot-gpt-4",
+						"copilot-gpt-4-turbo",
+						"custom"
+					],
+					"default": "copilot-gpt-4",
+					"description": "Target LLM to send compressed messages to"
+				},
+				"squeeze.customLLMEndpoint": {
+					"type": "string",
+					"default": "",
+					"description": "Custom LLM API endpoint (if targetLLM is 'custom')"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run package",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src --ext ts",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.90.0",
+		"@types/node": "20.x",
+		"@typescript-eslint/eslint-plugin": "^7.0.0",
+		"@typescript-eslint/parser": "^7.0.0",
+		"eslint": "^8.56.0",
+		"typescript": "^5.3.3",
+		"@vscode/test-cli": "^0.0.4",
+		"@vscode/test-electron": "^2.3.9"
+	},
+	"dependencies": {}
 }
