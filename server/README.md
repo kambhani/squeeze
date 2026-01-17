@@ -1,6 +1,6 @@
 # Squeeze Compression Server
 
-FastAPI server for compressing chat context before sending to LLMs.
+FastAPI server for compressing text tokens.
 
 ## Setup
 
@@ -25,36 +25,22 @@ The server will start on `http://localhost:8000`
 
 ### POST /compress
 
-Compresses the provided content. Currently returns first 10 characters of each input for testing.
+Compresses the provided text and returns token counts.
 
 **Request Body:**
 ```json
 {
-  "model": "string",
-  "prompt": "string (optional)",
-  "files": [
-    {
-      "path": "string",
-      "content": "string"
-    }
-  ],
-  "terminal": "string (optional)"
+  "text": "string (text to compress)",
+  "model": "string (compression model name)"
 }
 ```
 
 **Response:**
 ```json
 {
-  "compressedPrompt": "string (optional)",
-  "compressedFiles": [
-    {
-      "path": "string",
-      "content": "string"
-    }
-  ],
-  "compressedTerminal": "string (optional)",
-  "compressed": null,
-  "error": null
+  "compressedText": "string (compressed text)",
+  "inputTokens": 123,
+  "outputTokens": 45
 }
 ```
 
@@ -64,4 +50,4 @@ Health check endpoint.
 
 ## Development
 
-The server currently implements a test compression that returns the first 10 characters of each input. Replace the `truncate_to_10_chars` logic in `main.py` with your actual compression algorithm.
+The server currently implements a simple compression that truncates text to 50% for MVP. Replace the compression logic in `main.py` with your actual compression algorithm.

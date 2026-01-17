@@ -24,39 +24,11 @@
 				"isSticky": true
 			}
 		],
-		"commands": [
-			{
-				"command": "squeeze.compressAndSend",
-				"title": "Compress and Send to LLM",
-				"category": "Squeeze"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "squeeze.compressAndSend",
-				"key": "enter",
-				"when": "chatInputFocus && !suggestWidgetVisible"
-			}
-		],
+		"commands": [],
 		"configuration": {
 			"title": "Squeeze",
 			"properties": {
-				"squeeze.compressPrompt": {
-					"type": "boolean",
-					"default": false,
-					"description": "Compress the chat prompt before sending to LLM"
-				},
-				"squeeze.compressFiles": {
-					"type": "boolean",
-					"default": true,
-					"description": "Compress files from context window before sending to LLM"
-				},
-				"squeeze.compressTerminalOutput": {
-					"type": "boolean",
-					"default": false,
-					"description": "Compress terminal output before sending to LLM"
-				},
-				"squeeze.compressionModel": {
+				"squeeze.model": {
 					"type": "string",
 					"default": "default",
 					"description": "Compression model to use (sent to API)"
@@ -65,22 +37,6 @@
 					"type": "string",
 					"default": "http://localhost:8000/compress",
 					"description": "API endpoint URL for compression service"
-				},
-				"squeeze.targetLLM": {
-					"type": "string",
-					"enum": [
-						"copilot-gpt-3.5-turbo",
-						"copilot-gpt-4",
-						"copilot-gpt-4-turbo",
-						"custom"
-					],
-					"default": "copilot-gpt-4",
-					"description": "Target LLM to send compressed messages to"
-				},
-				"squeeze.customLLMEndpoint": {
-					"type": "string",
-					"default": "",
-					"description": "Custom LLM API endpoint (if targetLLM is 'custom')"
 				}
 			}
 		}

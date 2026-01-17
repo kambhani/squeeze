@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
 
 app = FastAPI(title="Squeeze Compression API", version="1.0.0")
 
@@ -15,63 +14,39 @@ app.add_middleware(
 )
 
 
-class FileContent(BaseModel):
-    path: str
-    content: str
-
-
 class CompressionRequest(BaseModel):
+    text: str
     model: str
-    prompt: Optional[str] = None
-    files: Optional[List[FileContent]] = None
-    terminal: Optional[str] = None
-
-
-class CompressedFileContent(BaseModel):
-    path: str
-    content: str
 
 
 class CompressionResponse(BaseModel):
-    compressedPrompt: Optional[str] = None
-    compressedFiles: Optional[List[CompressedFileContent]] = None
-    compressedTerminal: Optional[str] = None
-    compressed: Optional[dict] = None
-    error: Optional[str] = None
+    compressedText: str
+    inputTokens: int
+    outputTokens: int
 
 
-def truncate_to_10_chars(text: str) -> str:
-    """Truncate text to first 10 characters for testing."""
-    return text[:10] if text else ""
+def estimate_tokens(text: str) -> int:
+    """Simple token estimation: ~4 characters per token."""
+    return len(text) // 4
 
 
 @app.post("/compress", response_model=CompressionResponse)
 async def compress(request: CompressionRequest):
     """
-    Compression endpoint that returns first 10 characters of each input for testing.
+    Compression endpoint that takes text and model, returns compressed text and token counts.
     """
     try:
-        response = CompressionResponse()
-
-        # Compress prompt (first 10 chars)
-        if request.prompt:
-            response.compressedPrompt = truncate_to_10_chars(request.prompt)
-
-        # Compress files (first 10 chars of each file)
-        if request.files:
-            response.compressedFiles = [
-                CompressedFileContent(
-                    path=file.path,
-                    content=truncate_to_10_chars(file.content)
-                )
-                for file in request.files
-            ]
-
-        # Compress terminal output (first 10 chars)
-        if request.terminal:
-            response.compressedTerminal = truncate_to_10_chars(request.terminal)
-
-        return response
+        # Simple compression: truncate to 50% for MVP (replace with actual compression logic)
+        compressed = request.text[:len(request.text) // 2] if len(request.text) > 10 else request.text
+        
+        input_tokens = estimate_tokens(request.text)
+        output_tokens = estimate_tokens(compressed)
+        
+        return CompressionResponse(
+            compressedText=compressed,
+            inputTokens=input_tokens,
+            outputTokens=output_tokens
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Compression error: {str(e)}")
