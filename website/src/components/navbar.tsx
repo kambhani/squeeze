@@ -10,7 +10,7 @@ export async function Navbar() {
 		<header className="w-full border-b border-white/10 bg-black/30 backdrop-blur">
 			<nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4 text-white">
 				<Link className="text-lg font-semibold tracking-tight" href="/">
-					<Image src="/logos/SQUEEZE.png" className="dark:invert" alt="Squeeze" width={100} height={50} />
+					<Image src="/logos/SQUEEZE.png" className="dark:invert skew-x-[-16deg]" alt="Squeeze" width={100} height={50} />
 				</Link>
 
 			<div className="flex items-center gap-3">
