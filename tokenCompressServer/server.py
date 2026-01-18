@@ -3,7 +3,6 @@ from flask_cors import CORS
 
 from lingua import LinguaCompressor
 from token_compressor import TokenCompressor
-from utils import get_compression_stats
 from dotenv import load_dotenv
 load_dotenv()
 
