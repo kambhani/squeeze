@@ -52,3 +52,11 @@ yarn-error.log*
 
 # idea files
 .idea
+
+
+# token compress server
+
+__pycache__
+.claude
+venv
+.venv

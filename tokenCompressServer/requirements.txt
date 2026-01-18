@@ -1,0 +1,5 @@
+anthropic
+datasets
+tiktoken
+torch
+transformers
