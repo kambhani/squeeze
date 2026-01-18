@@ -1,7 +1,7 @@
 {
   "name": "squeeze",
-  "displayName": "squeeze",
-  "description": "",
+  "displayName": "Squeeze - Prompt Optimizer",
+  "description": "Optimizes prompts before sending to Copilot using TheTokenCompany API",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.108.1"
@@ -12,12 +12,50 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "squeeze-sidebar",
+          "title": "Squeeze",
+          "icon": "$(zap)"
+        }
+      ]
+    },
+    "views": {
+      "squeeze-sidebar": [
+        {
+          "type": "webview",
+          "id": "squeeze.sidebarView",
+          "name": "Prompt Optimizer"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "squeeze.helloWorld",
-        "title": "Hello World"
+        "command": "squeeze.copyToClipboard",
+        "title": "Squeeze: Copy to Clipboard"
+      },
+      {
+        "command": "squeeze.insertToChat",
+        "title": "Squeeze: Insert to Copilot Chat"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Squeeze",
+      "properties": {
+        "squeeze.apiEndpoint": {
+          "type": "string",
+          "default": "https://api.thetokencompany.com/v1/optimize",
+          "description": "API endpoint for the optimization service"
+        },
+        "squeeze.defaultMode": {
+          "type": "string",
+          "enum": ["compress", "enhance", "xml"],
+          "default": "compress",
+          "description": "Default optimization mode"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
