@@ -7,6 +7,7 @@ dist
 
 # dependencies
 website/node_modules
+website/generated
 squeeze/node_modules
 
 /.pnp

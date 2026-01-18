@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { ApiKeySection } from "./api-key-section";
 import {
 	Table,
 	TableBody,
@@ -33,6 +34,8 @@ export default async function AccountPage() {
 					<p className="text-white/70">{session.user.email}</p>
 				) : null}
 			</div>
+
+			<ApiKeySection />
 
 			<h1 className="text-2xl font-semibold">Queries</h1>
 
