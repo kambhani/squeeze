@@ -1,7 +1,7 @@
 {
   "name": "squeeze",
   "displayName": "squeeze",
-  "description": "compress and make your prompts more effecient",
+  "description": "",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.108.1"
