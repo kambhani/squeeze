@@ -32,7 +32,7 @@ export default async function AccountPage() {
 				<h1 className="text-3xl font-semibold">Account</h1>
 				<p className="text-white/70">Manage your profile details.</p>
 			</div>
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+			<div className="rounded-2xl border border-violet-500/50 shadow-lg shadow-violet-500/20 bg-white/5 p-6">
 				<p className="text-sm uppercase tracking-wide text-white/50">Signed in as</p>
 				<p className="text-xl font-semibold">{session.user.name ?? "User"}</p>
 				{session.user.email ? (
@@ -44,7 +44,7 @@ export default async function AccountPage() {
 
 			<h1 className="text-2xl font-semibold">Queries</h1>
 
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+			<div className="rounded-2xl border border-violet-500/50 shadow-lg shadow-violet-500/20 bg-white/5 p-6">
 				<div className="grid grid-cols-3 gap-4">
 					<div>
 						<p className="text-sm uppercase tracking-wide text-white/50">Total Input Tokens</p>
@@ -61,7 +61,7 @@ export default async function AccountPage() {
 				</div>
 			</div>
 
-			<div className="rounded-2xl border border-white/10 bg-white/5">
+			<div className="rounded-2xl border border-violet-500/50 shadow-lg shadow-violet-500/20 bg-white/5">
 				<Table>
 					<TableHeader>
 						<TableRow>

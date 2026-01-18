@@ -38,7 +38,7 @@ export function ApiKeySection() {
 	};
 
 	return (
-		<div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+		<div className="rounded-2xl border border-violet-500/50 shadow-lg shadow-violet-500/20 bg-white/5 p-6">
 			<div className="space-y-4">
 				<div className="space-y-2">
 					<p className="text-sm uppercase tracking-wide text-white/50">
