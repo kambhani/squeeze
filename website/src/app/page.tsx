@@ -13,7 +13,7 @@ export default async function Home() {
 				<p className="text-white/70 mb-4">Compress your CoPilot Prompts</p>
 				<Button asChild>
 					<Link href={session?.user ? "/account" : "/login"}>
-						{session?.user ? "Account" : "Get Started"}
+						{session?.user ? "Go to Account" : "Get Started"}
 					</Link>
 				</Button>
 			</div>
