@@ -1,204 +1,221 @@
 import * as vscode from "vscode";
 
 export class SqueezeViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "squeeze.sidebarView";
+	public static readonly viewType = "squeeze.sidebarView";
 
-  private _view?: vscode.WebviewView;
-  private _transformedPrompt: string = "";
+	private _view?: vscode.WebviewView;
+	private _transformedPrompt: string = "";
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+	constructor(private readonly _extensionUri: vscode.Uri) {}
 
-  public copyResult(): void {
-    if (this._transformedPrompt) {
-      vscode.env.clipboard.writeText(this._transformedPrompt);
-      vscode.window.showInformationMessage("Copied to clipboard!");
-    }
-  }
+	public copyResult(): void {
+		if (this._transformedPrompt) {
+			vscode.env.clipboard.writeText(this._transformedPrompt);
+			vscode.window.showInformationMessage("Copied to clipboard!");
+		}
+	}
 
-  public sendToCopilot(): void {
-    if (this._transformedPrompt) {
-      vscode.env.clipboard.writeText(this._transformedPrompt);
-      vscode.commands.executeCommand("workbench.action.chat.open", this._transformedPrompt);
-    }
-  }
+	public sendToCopilot(): void {
+		if (this._transformedPrompt) {
+			vscode.env.clipboard.writeText(this._transformedPrompt);
+			vscode.commands.executeCommand(
+				"workbench.action.chat.open",
+				this._transformedPrompt,
+			);
+		}
+	}
 
-  public resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken
-  ): void {
-    this._view = webviewView;
+	public resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		_context: vscode.WebviewViewResolveContext,
+		_token: vscode.CancellationToken,
+	): void {
+		this._view = webviewView;
 
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [this._extensionUri],
-    };
+		webviewView.webview.options = {
+			enableScripts: true,
+			localResourceRoots: [this._extensionUri],
+		};
 
-    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-    webviewView.webview.onDidReceiveMessage(async (data) => {
-      switch (data.type) {
-        case "transform": {
-          await this._transformPrompt(
-            data.prompt, 
-            data.mode, 
-            data.apiKey,
-            data.data  // Optional data object for tokenc
-          );
-          break;
-        }
-        case "copy": {
-          await vscode.env.clipboard.writeText(data.text);
-          vscode.window.showInformationMessage("Copied to clipboard!");
-          break;
-        }
-        case "sendToCopilot": {
-          await vscode.env.clipboard.writeText(data.text);
-          await vscode.commands.executeCommand(
-            "workbench.action.chat.open",
-            data.text
-          );
-          break;
-        }
-        case "saveApiKey": {
-          const config = vscode.workspace.getConfiguration("squeeze");
-          await config.update("apiKey", data.apiKey, vscode.ConfigurationTarget.Global);
-          vscode.window.showInformationMessage("API key saved!");
-          break;
-        }
-      }
-    });
-  }
+		webviewView.webview.onDidReceiveMessage(async (data) => {
+			switch (data.type) {
+				case "transform": {
+					await this._transformPrompt(
+						data.prompt,
+						data.mode,
+						data.apiKey,
+						data.data, // Optional data object for tokenc
+					);
+					break;
+				}
+				case "copy": {
+					await vscode.env.clipboard.writeText(data.text);
+					vscode.window.showInformationMessage("Copied to clipboard!");
+					break;
+				}
+				case "sendToCopilot": {
+					await vscode.env.clipboard.writeText(data.text);
+					await vscode.commands.executeCommand(
+						"workbench.action.chat.open",
+						data.text,
+					);
+					break;
+				}
+				case "saveApiKey": {
+					const config = vscode.workspace.getConfiguration("squeeze");
+					await config.update(
+						"apiKey",
+						data.apiKey,
+						vscode.ConfigurationTarget.Global,
+					);
+					vscode.window.showInformationMessage("API key saved!");
+					break;
+				}
+			}
+		});
+	}
 
-  private async _transformPrompt(
-    prompt: string, 
-    mode: string, 
-    apiKey: string,
-    compressionData?: {
-      aggressiveness?: number;
-      minTokens?: number | null;
-      maxTokens?: number | null;
-      rate?: number;
-    }
-  ) {
-    if (!this._view) {
-      return;
-    }
+	private async _transformPrompt(
+		prompt: string,
+		mode: string,
+		apiKey: string,
+		compressionData?: {
+			aggressiveness?: number;
+			minTokens?: number | null;
+			maxTokens?: number | null;
+			rate?: number;
+		},
+	) {
+		if (!this._view) {
+			return;
+		}
 
-    if (!apiKey || apiKey.trim() === "") {
-      this._view.webview.postMessage({
-        type: "error",
-        message: "Please enter your API key",
-      });
-      return;
-    }
+		if (!apiKey || apiKey.trim() === "") {
+			this._view.webview.postMessage({
+				type: "error",
+				message: "Please enter your API key",
+			});
+			return;
+		}
 
-    const config = vscode.workspace.getConfiguration("squeeze");
-    const backendUrl =
-      config.get<string>("backendUrl") || "http://localhost:3000";
+		const config = vscode.workspace.getConfiguration("squeeze");
+		const backendUrl =
+			config.get<string>("backendUrl") || "http://localhost:3000";
 
-    try {
-      this._view.webview.postMessage({ type: "loading", loading: true });
+		try {
+			this._view.webview.postMessage({ type: "loading", loading: true });
 
-      // Build the request payload - always include apiKey, text, scheme
-      const requestPayload: {
-        apiKey: string;
-        text: string;
-        scheme: string;
-        data?: {
-          aggressiveness?: number;
-          minTokens?: number;
-          maxTokens?: number;
-          rate?: number;
-        };
-      } = {
-        apiKey: apiKey.trim(),
-        text: prompt,
-        scheme: mode,
-      };
-      
-      // Only include data object for tokenc mode
-      if (mode === 'tokenc' && compressionData) {
-        requestPayload.data = {};
-        if (compressionData.aggressiveness !== undefined) {
-          requestPayload.data.aggressiveness = compressionData.aggressiveness;
-        }
-        if (compressionData.minTokens !== null && compressionData.minTokens !== undefined && compressionData.minTokens > 0) {
-          requestPayload.data.minTokens = compressionData.minTokens;
-        }
-        if (compressionData.maxTokens !== null && compressionData.maxTokens !== undefined && compressionData.maxTokens > 0) {
-          requestPayload.data.maxTokens = compressionData.maxTokens;
-        }
-      }
-      
-      // Only include data object for lingua mode
-      if (mode === 'lingua' && compressionData) {
-        requestPayload.data = {};
-        if (compressionData.rate !== undefined) {
-          requestPayload.data.rate = compressionData.rate;
-        }
-      }
+			// Build the request payload - always include apiKey, text, scheme
+			const requestPayload: {
+				apiKey: string;
+				text: string;
+				scheme: string;
+				data?: {
+					aggressiveness?: number;
+					minTokens?: number;
+					maxTokens?: number;
+					rate?: number;
+				};
+			} = {
+				apiKey: apiKey.trim(),
+				text: prompt,
+				scheme: mode,
+			};
 
-      // POST request with JSON body to /api/transform
-      const response = await fetch(`${backendUrl}/api/transform`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestPayload),
-      });
+			// Only include data object for tokenc mode
+			if (mode === "tokenc" && compressionData) {
+				requestPayload.data = {};
+				if (compressionData.aggressiveness !== undefined) {
+					requestPayload.data.aggressiveness = compressionData.aggressiveness;
+				}
+				if (
+					compressionData.minTokens !== null &&
+					compressionData.minTokens !== undefined &&
+					compressionData.minTokens > 0
+				) {
+					requestPayload.data.minTokens = compressionData.minTokens;
+				}
+				if (
+					compressionData.maxTokens !== null &&
+					compressionData.maxTokens !== undefined &&
+					compressionData.maxTokens > 0
+				) {
+					requestPayload.data.maxTokens = compressionData.maxTokens;
+				}
+			}
 
-      if (!response.ok) {
-        let errorMessage = `Request failed with status ${response.status}`;
-        try {
-          const errorData = await response.json() as { 
-            error?: string;
-          };
-          if (errorData?.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // ignore parse error
-        }
-        throw new Error(errorMessage);
-      }
+			// Only include data object for lingua mode
+			if (mode === "lingua" && compressionData) {
+				requestPayload.data = {};
+				if (compressionData.rate !== undefined) {
+					requestPayload.data.rate = compressionData.rate;
+				}
+			}
 
-      const data = await response.json() as { 
-        compressed: string;
-        input_tokens: number;
-        output_tokens: number;
-      };
-      
-      // Response is returned directly from /api/transform
-      let transformedPrompt: string;
-      if (data?.compressed) {
-        transformedPrompt = data.compressed;
-        // Optionally log token info
-        console.log(`Input tokens: ${data.input_tokens}, Output tokens: ${data.output_tokens}`);
-      } else {
-        throw new Error("Invalid response format from server");
-      }
-      
-      this._transformedPrompt = transformedPrompt;
+			// POST request with JSON body to /api/transform
+			const response = await fetch(`${backendUrl}/api/transform`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(requestPayload),
+			});
 
-      this._view.webview.postMessage({
-        type: "result",
-        transformedPrompt: transformedPrompt,
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      this._view.webview.postMessage({
-        type: "error",
-        message: `Transform failed: ${errorMessage}`,
-      });
-    } finally {
-      this._view.webview.postMessage({ type: "loading", loading: false });
-    }
-  }
+			if (!response.ok) {
+				let errorMessage = `Request failed with status ${response.status}`;
+				try {
+					const errorData = (await response.json()) as {
+						error?: string;
+					};
+					if (errorData?.error) {
+						errorMessage = errorData.error;
+					}
+				} catch {
+					// ignore parse error
+				}
+				throw new Error(errorMessage);
+			}
 
-  private _getHtmlForWebview(webview: vscode.Webview) {
-    return `<!DOCTYPE html>
+			const data = (await response.json()) as {
+				compressed: string;
+				input_tokens: number;
+				output_tokens: number;
+			};
+
+			// Response is returned directly from /api/transform
+			let transformedPrompt: string;
+			if (data?.compressed) {
+				transformedPrompt = data.compressed;
+				// Optionally log token info
+				console.log(
+					`Input tokens: ${data.input_tokens}, Output tokens: ${data.output_tokens}`,
+				);
+			} else {
+				throw new Error("Invalid response format from server");
+			}
+
+			this._transformedPrompt = transformedPrompt;
+
+			this._view.webview.postMessage({
+				type: "result",
+				transformedPrompt: transformedPrompt,
+			});
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error occurred";
+			this._view.webview.postMessage({
+				type: "error",
+				message: `Transform failed: ${errorMessage}`,
+			});
+		} finally {
+			this._view.webview.postMessage({ type: "loading", loading: false });
+		}
+	}
+
+	private _getHtmlForWebview(webview: vscode.Webview) {
+		return `<!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
@@ -891,5 +908,5 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
       </script>
     </body>
     </html>`;
-  }
+	}
 }
