@@ -60,3 +60,4 @@ __pycache__
 .claude
 venv
 .venv
+.env

@@ -1,22 +1,31 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from ml_compressor import MLCompressor
+from lingua import LinguaCompressor
+from tokenc import TokenCompressor
 from utils import get_compression_stats
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize once to avoid reloading the model per request.
-_compressor = MLCompressor()
+# Initialize compressors once to avoid reloading per request.
+_compressors = {
+    "lingua": LinguaCompressor(),
+    "tokenc": TokenCompressor(),
+}
 
 
-@app.post("/compress")
+@app.post("/transform")
 def compress_text():
     payload = request.get_json(silent=True) or {}
+
     text = payload.get("text")
     if not isinstance(text, str) or not text.strip():
         return jsonify({"error": "Field 'text' is required and must be a non-empty string."}), 400
+
+    schema = payload.get("schema", "lingua")
+    if schema not in _compressors:
+        return jsonify({"error": f"Invalid schema '{schema}'. Must be one of: {list(_compressors.keys())}"}), 400
 
     rate = payload.get("rate", 0.5)
     if not isinstance(rate, (int, float)) or not (0 < float(rate) <= 1):
@@ -27,7 +36,8 @@ def compress_text():
         return jsonify({"error": "Field 'force_tokens' must be a list of strings."}), 400
 
     try:
-        compressed = _compressor.compress(
+        compressor = _compressors[schema]
+        compressed = compressor.compress(
             text=text,
             rate=float(rate),
             force_tokens=force_tokens,
@@ -39,6 +49,7 @@ def compress_text():
     return jsonify(
         {
             "compressed": compressed,
+            "schema": schema,
             "rate": float(rate),
             "force_tokens": force_tokens,
             "input_tokens": stats["original_tokens"],
