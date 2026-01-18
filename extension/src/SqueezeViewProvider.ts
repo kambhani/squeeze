@@ -624,8 +624,6 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         <div class="section">
           <label class="section-label">Transformation Mode</label>
           <select id="modeSelect" class="mode-select">
-            <option value="enhance">✨ Enhance</option>
-            <option value="xml">📋 XML</option>
             <option value="tokenc">🗜️ TokenC</option>
             <option value="lingua">🔤 Lingua</option>
           </select>
