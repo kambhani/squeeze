@@ -122,17 +122,14 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         requestPayload.maxTokens = maxTokens;
       }
 
-      // tRPC query expects input as a JSON-encoded query parameter for GET requests
-      // or as a JSON body for POST requests (mutations)
-      // Using POST for the transform operation
-      const response = await fetch(`${backendUrl}/api/trpc/transform.publicCreate`, {
-        method: 'POST',
+      // tRPC queries use GET with input as a JSON-encoded query parameter
+      // The input must be wrapped in { json: ... }
+      const inputParam = encodeURIComponent(JSON.stringify({ json: requestPayload }));
+      const response = await fetch(`${backendUrl}/api/trpc/transform.publicCreate?input=${inputParam}`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          json: requestPayload
-        })
       });
 
       if (!response.ok) {
@@ -160,24 +157,28 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
       const data = await response.json() as { 
         result?: { 
           data?: {
-            json?: string;
-          } | string;
-        }; 
-        data?: string;
+            json?: {
+              compressed: string;
+              input_tokens: number;
+              output_tokens: number;
+            };
+          };
+        };
+        error?: {
+          json?: {
+            message?: string;
+          };
+        };
       };
       
-      // tRPC wraps the response - handle both possible formats
+      // tRPC wraps the response in result.data.json
       let transformedPrompt: string;
-      if (data?.result?.data) {
-        if (typeof data.result.data === 'object' && 'json' in data.result.data) {
-          transformedPrompt = data.result.data.json as string;
-        } else {
-          transformedPrompt = data.result.data as string;
-        }
-      } else if (data?.data) {
-        transformedPrompt = data.data;
+      if (data?.result?.data?.json?.compressed) {
+        transformedPrompt = data.result.data.json.compressed;
+        // Optionally log token info
+        console.log(`Input tokens: ${data.result.data.json.input_tokens}, Output tokens: ${data.result.data.json.output_tokens}`);
       } else {
-        transformedPrompt = String(data);
+        throw new Error("Invalid response format from server");
       }
       
       this._transformedPrompt = transformedPrompt;
@@ -607,9 +608,10 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         <div class="section">
           <label class="section-label">Transformation Mode</label>
           <select id="modeSelect" class="mode-select">
-            <option value="enhance">✨ Enhance — Make it more detailed</option>
-            <option value="xml">📋 XML — Structure with XML tags</option>
-            <option value="compress">🗜️ Compress — Make it concise</option>
+            <option value="enhance">✨ Enhance</option>
+            <option value="xml">📋 XML</option>
+            <option value="tokenc">🗜️ TokenC</option>
+            <option value="lingua">🔤 Lingua</option>
           </select>
         </div>
         
