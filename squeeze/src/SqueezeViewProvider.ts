@@ -43,9 +43,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
             data.prompt, 
             data.mode, 
             data.apiKey,
-            data.aggressiveness,
-            data.minTokens,
-            data.maxTokens
+            data.data  // Optional data object for tokenc
           );
           break;
         }
@@ -76,9 +74,11 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
     prompt: string, 
     mode: string, 
     apiKey: string,
-    aggressiveness: number = 0.5,
-    minTokens: number | null = null,
-    maxTokens: number | null = null
+    compressionData?: {
+      aggressiveness?: number;
+      minTokens?: number | null;
+      maxTokens?: number | null;
+    }
   ) {
     if (!this._view) {
       return;
@@ -99,27 +99,34 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
     try {
       this._view.webview.postMessage({ type: "loading", loading: true });
 
-      // Build the request payload matching the tRPC transform.publicCreate schema
+      // Build the request payload - always include apiKey, text, scheme
       const requestPayload: {
         apiKey: string;
         text: string;
         scheme: string;
-        aggressiveness: number;
-        minTokens?: number;
-        maxTokens?: number;
+        data?: {
+          aggressiveness?: number;
+          minTokens?: number;
+          maxTokens?: number;
+        };
       } = {
         apiKey: apiKey.trim(),
         text: prompt,
         scheme: mode,
-        aggressiveness: aggressiveness,
       };
       
-      // Only include optional fields if they have values
-      if (minTokens !== null && minTokens > 0) {
-        requestPayload.minTokens = minTokens;
-      }
-      if (maxTokens !== null && maxTokens > 0) {
-        requestPayload.maxTokens = maxTokens;
+      // Only include data object for tokenc mode
+      if (mode === 'tokenc' && compressionData) {
+        requestPayload.data = {};
+        if (compressionData.aggressiveness !== undefined) {
+          requestPayload.data.aggressiveness = compressionData.aggressiveness;
+        }
+        if (compressionData.minTokens !== null && compressionData.minTokens !== undefined && compressionData.minTokens > 0) {
+          requestPayload.data.minTokens = compressionData.minTokens;
+        }
+        if (compressionData.maxTokens !== null && compressionData.maxTokens !== undefined && compressionData.maxTokens > 0) {
+          requestPayload.data.maxTokens = compressionData.maxTokens;
+        }
       }
 
       // tRPC queries use GET with input as a JSON-encoded query parameter
@@ -615,7 +622,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           </select>
         </div>
         
-        <div class="section">
+        <div class="section" id="compressionSettings" style="display: none;">
           <label class="section-label">Compression Settings</label>
           <div class="slider-container">
             <div class="slider-header">
@@ -711,6 +718,24 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           maxTokensInput.value = state.maxTokens;
         }
         
+        const compressionSettings = document.getElementById('compressionSettings');
+        
+        // Show/hide compression settings based on mode
+        function updateCompressionSettingsVisibility() {
+          const mode = modeSelect.value;
+          if (mode === 'tokenc') {
+            compressionSettings.style.display = 'block';
+          } else {
+            compressionSettings.style.display = 'none';
+          }
+        }
+        
+        // Initialize visibility
+        updateCompressionSettingsVisibility();
+        
+        // Listen for mode changes
+        modeSelect.addEventListener('change', updateCompressionSettingsVisibility);
+        
         // Update slider value display
         aggressivenessSlider.addEventListener('input', (e) => {
           aggressivenessValue.textContent = e.target.value;
@@ -779,15 +804,24 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
             maxTokens: maxTokensInput.value
           });
           
-          vscode.postMessage({
+          // Build the message payload
+          const payload = {
             type: 'transform',
             prompt: prompt,
             mode: mode,
-            apiKey: apiKey,
-            aggressiveness: aggressiveness,
-            minTokens: minTokens,
-            maxTokens: maxTokens
-          });
+            apiKey: apiKey
+          };
+          
+          // Only include data object with compression settings for tokenc
+          if (mode === 'tokenc') {
+            payload.data = {
+              aggressiveness: aggressiveness,
+              minTokens: minTokens,
+              maxTokens: maxTokens
+            };
+          }
+          
+          vscode.postMessage(payload);
         }
         
         function showError(message) {
