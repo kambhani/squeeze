@@ -41,7 +41,7 @@ export default function Hero({ isLoggedIn }: HeroProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
       >
-        Compress your CoPilot Prompts
+        Compress your LLM Prompts and save on costs
       </motion.p>
 
       <motion.div
