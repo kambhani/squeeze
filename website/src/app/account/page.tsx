@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { auth } from "~/server/auth";
 
@@ -6,18 +7,8 @@ export default async function AccountPage() {
 	const session = await auth();
 
 	if (!session?.user) {
-		return (
-			<main className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-				<h1 className="text-3xl font-semibold">Account</h1>
-				<p className="text-white/70">You need to be logged in to view this page.</p>
-				<Link
-					className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold transition hover:bg-white/20"
-					href="/api/auth/signin"
-				>
-					Go to login
-				</Link>
-			</main>
-		);
+		
+		redirect("/");
 	}
 
 	return (

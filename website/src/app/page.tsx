@@ -12,11 +12,9 @@ export default async function Home() {
 				<p className="text-4xl font-bold text-white mb-4">Squeeze</p>
 				<p className="text-white/70 mb-4">Compress your CoPilot Prompts</p>
 				<Button asChild>
-					{session?.user ? (
-						<Link href="/account">Account</Link>
-					) : (
-						<Link href="/api/auth/signin">Get Started</Link>
-					)}
+					<Link href={session?.user ? "/account" : "/login"}>
+						{session?.user ? "Account" : "Get Started"}
+					</Link>
 				</Button>
 			</div>
 		</HydrateClient>
