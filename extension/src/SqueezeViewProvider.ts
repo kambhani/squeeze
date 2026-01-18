@@ -703,7 +703,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           </div>
           <div class="result-actions">
             <button id="copyBtn" class="action-btn">📋 Copy</button>
-            <button id="copilotBtn" class="action-btn primary">🚀 Send to Copilot</button>
+            <button id="copilotBtn" class="action-btn primary">🚀 Send to AI</button>
           </div>
         </div>
       </div>

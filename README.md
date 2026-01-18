@@ -2,7 +2,7 @@
 
 ## Inspiration
 
-Programmers use AI-powered IDEs like Trae, Cursor, Claude Code, and Visual Studio Code to speed up their development workflowws. However, they often don't pay attention to the exact prompt being sent to these tools. This can lead to unoptimized queries and significantly higher input token costs. Our goal was to build a tool to help solve this problem by providing an easy-to-use mechanism for developers to optimize their queries, directly from their IDE of choice.
+Programmers use AI-powered IDEs like Trae, Cursor, Claude Code, and Visual Studio Code to speed up their development workflows. However, they often don't pay attention to the exact prompt being sent to these tools. This can lead to unoptimized queries and significantly higher input token costs. Our goal was to build a tool to help solve this problem by providing an easy-to-use mechanism for developers to optimize their queries, directly from their IDE of choice.
 
 ## What it does
 
