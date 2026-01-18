@@ -5,7 +5,7 @@ import { createTRPCContext } from "~/server/api/trpc";
 export async function POST(req: NextRequest) {
 	try {
 		const body = await req.json();
-		const { apiKey, text, scheme } = body;
+		const { apiKey, text, scheme, data } = body;
 
 		// Create tRPC context and caller
 		const ctx = await createTRPCContext({
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 			apiKey,
 			text,
 			scheme,
+			data,
 		});
 
 		return NextResponse.json(result);

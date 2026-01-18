@@ -6,9 +6,8 @@ dist
 # website
 
 # dependencies
-website/node_modules
+node_modules
 website/generated
-squeeze/node_modules
 
 /.pnp
 .pnp.js

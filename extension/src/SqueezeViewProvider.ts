@@ -139,31 +139,23 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         }
       }
 
-      // tRPC queries use GET with input as a JSON-encoded query parameter
-      // The input must be wrapped in { json: ... }
-      const inputParam = encodeURIComponent(JSON.stringify({ json: requestPayload }));
-      const response = await fetch(`${backendUrl}/api/trpc/transform.publicCreate?input=${inputParam}`, {
-        method: 'GET',
+      // POST request with JSON body to /api/transform
+      const response = await fetch(`${backendUrl}/api/transform`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
         let errorMessage = `Request failed with status ${response.status}`;
         try {
           const errorData = await response.json() as { 
-            error?: { 
-              message?: string;
-              json?: {
-                message?: string;
-              }
-            } 
+            error?: string;
           };
-          if (errorData?.error?.json?.message) {
-            errorMessage = errorData.error.json.message;
-          } else if (errorData?.error?.message) {
-            errorMessage = errorData.error.message;
+          if (errorData?.error) {
+            errorMessage = errorData.error;
           }
         } catch {
           // ignore parse error
@@ -172,28 +164,17 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
       }
 
       const data = await response.json() as { 
-        result?: { 
-          data?: {
-            json?: {
-              compressed: string;
-              input_tokens: number;
-              output_tokens: number;
-            };
-          };
-        };
-        error?: {
-          json?: {
-            message?: string;
-          };
-        };
+        compressed: string;
+        input_tokens: number;
+        output_tokens: number;
       };
       
-      // tRPC wraps the response in result.data.json
+      // Response is returned directly from /api/transform
       let transformedPrompt: string;
-      if (data?.result?.data?.json?.compressed) {
-        transformedPrompt = data.result.data.json.compressed;
+      if (data?.compressed) {
+        transformedPrompt = data.compressed;
         // Optionally log token info
-        console.log(`Input tokens: ${data.result.data.json.input_tokens}, Output tokens: ${data.result.data.json.output_tokens}`);
+        console.log(`Input tokens: ${data.input_tokens}, Output tokens: ${data.output_tokens}`);
       } else {
         throw new Error("Invalid response format from server");
       }
