@@ -6,6 +6,7 @@ import {
 	protectedProcedure,
 	publicProcedure,
 } from "~/server/api/trpc";
+import { db } from "~/server/db";
 
 enum Transformation {
 	TOKENC = "tokenc",
@@ -28,8 +29,12 @@ export const transformRouter = createTRPCRouter({
 				scheme: z.nativeEnum(Transformation),
 			}),
 		)
-		.query(async ({ input }) => {
-			return await transformInput(input.text, input.scheme);
+		.query(async ({ ctx, input }) => {
+			return await transformInput(
+				input.text,
+				input.scheme,
+				ctx.session.user.id,
+			);
 		}),
 
 	publicCreate: publicProcedure
@@ -54,13 +59,14 @@ export const transformRouter = createTRPCRouter({
 				});
 			}
 
-			return await transformInput(input.text, input.scheme);
+			return await transformInput(input.text, input.scheme, user.id);
 		}),
 });
 
 const transformInput = async (
 	text: string,
 	scheme: Transformation,
+	userId: string,
 ): Promise<CompressionOutput> => {
 	try {
 		const response = await fetch("http://localhost:5001/transform", {
@@ -85,6 +91,15 @@ const transformInput = async (
 
 		// Validate the response conforms to CompressionOutput type
 		const validatedData = CompressionOutputSchema.parse(data);
+
+		// Save query to database
+		await db.query.create({
+			data: {
+				userId,
+				inputTokens: validatedData.input_tokens,
+				outputTokens: validatedData.output_tokens,
+			},
+		});
 
 		return validatedData;
 	} catch (error) {
