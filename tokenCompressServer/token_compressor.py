@@ -20,20 +20,37 @@ class TokenCompressor:
             raise ValueError("API key required. Set TTC_API_KEY env var or pass api_key.")
         self.client = TokenClient(api_key=self.api_key)
 
-    def compress(self, text: str, rate: float = 0.5, force_tokens: list = None) -> str:
+    def compress(self, text: str, data: dict = None) -> str:
         """
         Compress text using The Token Company API.
 
         Args:
             text: Input text to compress.
-            rate: The target compression ratio (0-1). Maps to aggressiveness.
-            force_tokens: Unused, kept for interface compatibility.
+            data: Dictionary containing optional parameters:
+                - aggressiveness: Compression aggressiveness (default: 0.5)
+                - minTokens: Minimum number of tokens (default: None)
+                - maxTokens: Maximum number of tokens (default: None)
 
         Returns:
             Compressed text.
         """
-        response = self.client.compress_input(
-            input=text,
-            aggressiveness=1.0 - rate,  # rate=0.5 means keep 50%, so aggressiveness=0.5
-        )
+        if data is None:
+            data = {}
+        
+        aggressiveness = data.get("aggressiveness", 0.5)
+        min_tokens = data.get("minTokens", None)
+        max_tokens = data.get("maxTokens", None)
+        
+        # Build the compress_input call with optional parameters
+        compress_params = {
+            "input": text,
+            "aggressiveness": aggressiveness,
+        }
+        
+        if min_tokens is not None:
+            compress_params["min_tokens"] = min_tokens
+        if max_tokens is not None:
+            compress_params["max_tokens"] = max_tokens
+        
+        response = self.client.compress_input(**compress_params)
         return response.output

@@ -26,10 +26,11 @@ export const transformRouter = createTRPCRouter({
 			z.object({
 				text: z.string().min(1),
 				scheme: z.nativeEnum(Transformation),
+				data: z.record(z.unknown()).optional(),
 			}),
 		)
 		.query(async ({ input }) => {
-			return await transformInput(input.text, input.scheme);
+			return await transformInput(input.text, input.scheme, input.data);
 		}),
 
 	publicCreate: publicProcedure
@@ -38,6 +39,7 @@ export const transformRouter = createTRPCRouter({
 				apiKey: z.string().min(1),
 				text: z.string().min(1),
 				scheme: z.nativeEnum(Transformation),
+				data: z.record(z.unknown()).optional(),
 			}),
 		)
 		.query(async ({ ctx, input }) => {
@@ -54,24 +56,31 @@ export const transformRouter = createTRPCRouter({
 				});
 			}
 
-			return await transformInput(input.text, input.scheme);
+			return await transformInput(input.text, input.scheme, input.data);
 		}),
 });
 
 const transformInput = async (
 	text: string,
 	scheme: Transformation,
+	data?: Record<string, unknown>,
 ): Promise<CompressionOutput> => {
 	try {
+		const requestBody: Record<string, unknown> = {
+			text,
+			scheme,
+		};
+
+		if (data) {
+			requestBody.data = data;
+		}
+
 		const response = await fetch("http://localhost:5001/transform", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({
-				text,
-				scheme,
-			}),
+			body: JSON.stringify(requestBody),
 		});
 
 		if (!response.ok) {
@@ -81,10 +90,10 @@ const transformInput = async (
 			});
 		}
 
-		const data = await response.json();
+		const responseData = await response.json();
 
 		// Validate the response conforms to CompressionOutput type
-		const validatedData = CompressionOutputSchema.parse(data);
+		const validatedData = CompressionOutputSchema.parse(responseData);
 
 		return validatedData;
 	} catch (error) {

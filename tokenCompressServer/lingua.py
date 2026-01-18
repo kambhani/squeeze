@@ -19,18 +19,25 @@ class LinguaCompressor:
         device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.compressor = PromptCompressor(model_name, device_map=device, use_llmlingua2=True)
 
-    def compress(self, text: str, rate: float = 0.5, force_tokens: list = None) -> str:
+    def compress(self, text: str, data: dict = None) -> str:
         """
         Compress text using the LLMLingua model.
 
         Args:
             text: Input text to compress.
-            rate: The target compression ratio.
-            force_tokens: A list of tokens to force-keep in the compressed prompt.
+            data: Dictionary containing optional parameters:
+                - rate: The target compression ratio (default: 0.5)
+                - force_tokens: A list of tokens to force-keep in the compressed prompt (default: None)
 
         Returns:
             Compressed text.
         """
+        if data is None:
+            data = {}
+        
+        rate = data.get("rate", 0.5)
+        force_tokens = data.get("force_tokens", None)
+        
         if force_tokens is None:
             force_tokens = ["\n", ".", "?", "!"]
 
