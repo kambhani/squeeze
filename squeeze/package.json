@@ -1,10 +1,10 @@
 {
   "name": "squeeze",
   "displayName": "Squeeze",
-  "description": "Transform and enhance your prompts",
+  "description": "Transform your prompts with AI-powered enhancement, XML structuring, and compression",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.108.1"
+    "vscode": "^1.96.0"
   },
   "categories": [
     "Other"
@@ -25,19 +25,19 @@
       "squeeze-sidebar": [
         {
           "type": "webview",
-          "id": "squeeze.promptView",
-          "name": "Prompt Transformer"
+          "id": "squeeze.sidebarView",
+          "name": "Squeeze"
         }
       ]
     },
     "commands": [
       {
-        "command": "squeeze.transformPrompt",
+        "command": "squeeze.transform",
         "title": "Squeeze: Transform Prompt"
       },
       {
-        "command": "squeeze.copyToClipboard",
-        "title": "Squeeze: Copy Result to Clipboard"
+        "command": "squeeze.copyResult",
+        "title": "Squeeze: Copy Result"
       },
       {
         "command": "squeeze.sendToCopilot",
@@ -49,8 +49,13 @@
       "properties": {
         "squeeze.backendUrl": {
           "type": "string",
-          "default": "http://localhost:8000/transform",
-          "description": "URL of the backend endpoint for prompt transformation"
+          "default": "http://localhost:3000",
+          "description": "Backend URL for the Squeeze API"
+        },
+        "squeeze.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Squeeze API key for authentication"
         }
       }
     }
@@ -64,13 +69,14 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.108.1",
+    "@types/vscode": "^1.96.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "typescript-eslint": "^8.52.0",
-    "eslint": "^9.39.2",
-    "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
   }
 }
