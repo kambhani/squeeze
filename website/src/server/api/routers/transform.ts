@@ -26,7 +26,7 @@ export const transformRouter = createTRPCRouter({
 			z.object({
 				text: z.string().min(1),
 				scheme: z.nativeEnum(Transformation),
-			})
+			}),
 		)
 		.query(async ({ input }) => {
 			return await transformInput(input.text, input.scheme);
@@ -38,7 +38,7 @@ export const transformRouter = createTRPCRouter({
 				apiKey: z.string().min(1),
 				text: z.string().min(1),
 				scheme: z.nativeEnum(Transformation),
-			})
+			}),
 		)
 		.query(async ({ ctx, input }) => {
 			const user = await ctx.db.user.findFirst({
@@ -63,7 +63,7 @@ const transformInput = async (
 	scheme: Transformation,
 ): Promise<CompressionOutput> => {
 	try {
-		const response = await fetch("http://localhost:5000/transform", {
+		const response = await fetch("http://localhost:5001/transform", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
