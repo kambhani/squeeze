@@ -1,0 +1,76 @@
+{
+  "name": "squeeze",
+  "displayName": "Squeeze",
+  "description": "Transform and enhance your prompts",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.108.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "squeeze-sidebar",
+          "title": "Squeeze",
+          "icon": "resources/squeeze-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "squeeze-sidebar": [
+        {
+          "type": "webview",
+          "id": "squeeze.promptView",
+          "name": "Prompt Transformer"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "squeeze.transformPrompt",
+        "title": "Squeeze: Transform Prompt"
+      },
+      {
+        "command": "squeeze.copyToClipboard",
+        "title": "Squeeze: Copy Result to Clipboard"
+      },
+      {
+        "command": "squeeze.sendToCopilot",
+        "title": "Squeeze: Send to Copilot"
+      }
+    ],
+    "configuration": {
+      "title": "Squeeze",
+      "properties": {
+        "squeeze.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8000/transform",
+          "description": "URL of the backend endpoint for prompt transformation"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.108.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.52.0",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
