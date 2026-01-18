@@ -8,10 +8,17 @@ import {
 } from "~/server/api/trpc";
 
 enum Transformation {
-	XML = "xml",
-	ENHANCE = "enhance",
-	COMPRESS = "compress",
+	TOKENC = "tokenc",
+	LINGUA = "lingua",
 }
+
+const CompressionOutputSchema = z.object({
+	compressed: z.string(),
+	input_tokens: z.number(),
+	output_tokens: z.number(),
+});
+
+type CompressionOutput = z.infer<typeof CompressionOutputSchema>;
 
 export const transformRouter = createTRPCRouter({
 	protectedCreate: protectedProcedure
@@ -51,16 +58,54 @@ export const transformRouter = createTRPCRouter({
 		}),
 });
 
-const transformInput = async (text: string, scheme: Transformation) => {
-	switch (scheme) {
-		case Transformation.XML: {
-			return;
+const transformInput = async (
+	text: string,
+	scheme: Transformation,
+): Promise<CompressionOutput> => {
+	try {
+		const response = await fetch("http://localhost:5000/transform", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				text,
+				scheme,
+			}),
+		});
+
+		if (!response.ok) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: `Transform endpoint returned ${response.status}: ${response.statusText}`,
+			});
 		}
-		case Transformation.ENHANCE: {
-			return;
+
+		const data = await response.json();
+
+		// Validate the response conforms to CompressionOutput type
+		const validatedData = CompressionOutputSchema.parse(data);
+
+		return validatedData;
+	} catch (error) {
+		if (error instanceof z.ZodError) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: `Invalid response format from transform endpoint: ${error.message}`,
+			});
 		}
-		case Transformation.COMPRESS: {
-			return;
+
+		if (error instanceof TRPCError) {
+			throw error;
 		}
+
+		// Handle network errors or other fetch errors
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message:
+				error instanceof Error
+					? `Failed to call transform endpoint: ${error.message}`
+					: "Failed to call transform endpoint",
+		});
 	}
 };
