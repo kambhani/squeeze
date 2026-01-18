@@ -13,18 +13,26 @@ export async function Navbar() {
 					<Image src="/logos/SQUEEZE.png" className="dark:invert" alt="Squeeze" width={100} height={50} />
 				</Link>
 
-				<div className="flex items-center gap-3">
-					{session?.user ? (
-						<UserMenu />
-					) : (
+			<div className="flex items-center gap-3">
+				{session?.user ? (
+					<>
 						<Link
 							className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
-							href="/login"
+							href="/demo"
 						>
-							Login
+							Demo
 						</Link>
-					)}
-				</div>
+						<UserMenu />
+					</>
+				) : (
+					<Link
+						className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+						href="/login"
+					>
+						Login
+					</Link>
+				)}
+			</div>
 			</nav>
 		</header>
 	);
