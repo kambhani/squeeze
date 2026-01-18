@@ -2,8 +2,10 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from lingua import LinguaCompressor
-from tokenc import TokenCompressor
+from token_compressor import TokenCompressor
 from utils import get_compression_stats
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)

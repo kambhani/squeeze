@@ -3,7 +3,6 @@
 import os
 from tokenc import TokenClient
 
-
 class TokenCompressor:
     """
     Text compressor using The Token Company API.
