@@ -1,569 +1,784 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 export class SqueezeViewProvider implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'squeeze.promptView';
-    
-    private _view?: vscode.WebviewView;
-    private _transformedPrompt: string = '';
+  public static readonly viewType = "squeeze.sidebarView";
 
-    constructor(private readonly _extensionUri: vscode.Uri) {}
+  private _view?: vscode.WebviewView;
+  private _transformedPrompt: string = "";
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken
-    ) {
-        this._view = webviewView;
+  constructor(private readonly _extensionUri: vscode.Uri) {}
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
+  public copyResult(): void {
+    if (this._transformedPrompt) {
+      vscode.env.clipboard.writeText(this._transformedPrompt);
+      vscode.window.showInformationMessage("Copied to clipboard!");
+    }
+  }
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+  public sendToCopilot(): void {
+    if (this._transformedPrompt) {
+      vscode.env.clipboard.writeText(this._transformedPrompt);
+      vscode.commands.executeCommand("workbench.action.chat.open", this._transformedPrompt);
+    }
+  }
 
-        // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            switch (data.type) {
-                case 'transform':
-                    await this._transformPrompt(data.prompt, data.mode);
-                    break;
-                case 'copy':
-                    await this._copyToClipboard();
-                    break;
-                case 'sendToCopilot':
-                    await this._sendToCopilot();
-                    break;
-            }
-        });
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ): void {
+    this._view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+    };
+
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+    webviewView.webview.onDidReceiveMessage(async (data) => {
+      switch (data.type) {
+        case "transform": {
+          await this._transformPrompt(
+            data.prompt, 
+            data.mode, 
+            data.apiKey,
+            data.aggressiveness,
+            data.minTokens,
+            data.maxTokens
+          );
+          break;
+        }
+        case "copy": {
+          await vscode.env.clipboard.writeText(data.text);
+          vscode.window.showInformationMessage("Copied to clipboard!");
+          break;
+        }
+        case "sendToCopilot": {
+          await vscode.env.clipboard.writeText(data.text);
+          await vscode.commands.executeCommand(
+            "workbench.action.chat.open",
+            data.text
+          );
+          break;
+        }
+        case "saveApiKey": {
+          const config = vscode.workspace.getConfiguration("squeeze");
+          await config.update("apiKey", data.apiKey, vscode.ConfigurationTarget.Global);
+          vscode.window.showInformationMessage("API key saved!");
+          break;
+        }
+      }
+    });
+  }
+
+  private async _transformPrompt(
+    prompt: string, 
+    mode: string, 
+    apiKey: string,
+    aggressiveness: number = 0.5,
+    minTokens: number | null = null,
+    maxTokens: number | null = null
+  ) {
+    if (!this._view) {
+      return;
     }
 
-    private async _transformPrompt(prompt: string, mode: string) {
-        if (!prompt.trim()) {
-            vscode.window.showWarningMessage('Please enter a prompt to transform.');
-            return;
-        }
+    if (!apiKey || apiKey.trim() === "") {
+      this._view.webview.postMessage({
+        type: "error",
+        message: "Please enter your API key",
+      });
+      return;
+    }
 
-        // Show loading state
-        this._postMessage({ type: 'loading', loading: true });
+    const config = vscode.workspace.getConfiguration("squeeze");
+    const backendUrl =
+      config.get<string>("backendUrl") || "http://localhost:3000";
 
+    try {
+      this._view.webview.postMessage({ type: "loading", loading: true });
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: apiKey,
+        text: prompt,
+        scheme: mode,
+        aggressiveness: aggressiveness,
+      };
+      
+      if (minTokens !== null) {
+        requestBody.minTokens = minTokens;
+      }
+      if (maxTokens !== null) {
+        requestBody.maxTokens = maxTokens;
+      }
+
+      const response = await fetch(
+        `${backendUrl}/api/trpc/transform.publicCreate?input=${encodeURIComponent(
+          JSON.stringify(requestBody)
+        )}`
+      );
+
+      if (!response.ok) {
+        let errorMessage = `Request failed with status ${response.status}`;
         try {
-            // TODO: Replace with your actual backend endpoint
-            const backendUrl = vscode.workspace.getConfiguration('squeeze').get<string>('backendUrl') 
-                || 'http://localhost:8000/transform';
-            
-            const response = await fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    prompt: prompt,
-                    mode: mode
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Backend returned ${response.status}`);
-            }
-
-            const result = await response.json() as { transformedPrompt?: string; result?: string };
-            this._transformedPrompt = result.transformedPrompt || result.result || '';
-            
-            this._postMessage({ 
-                type: 'result', 
-                result: this._transformedPrompt 
-            });
-        } catch (error) {
-            // For development/testing, return a mock response
-            const mockResponses: Record<string, string> = {
-                'enhance': `[Enhanced] ${prompt}\n\nPlease provide detailed, step-by-step guidance with examples and best practices.`,
-                'xml': `<prompt>\n  <instruction>${prompt}</instruction>\n  <context>User request</context>\n  <format>Structured response</format>\n</prompt>`,
-                'compress': prompt.split(' ').filter((_, i) => i % 2 === 0 || prompt.split(' ')[i]?.length > 4).join(' ')
-            };
-            
-            this._transformedPrompt = mockResponses[mode] || prompt;
-            
-            this._postMessage({ 
-                type: 'result', 
-                result: this._transformedPrompt,
-                warning: 'Using mock response (backend not available)'
-            });
-            
-            console.error('Transform error:', error);
-        } finally {
-            this._postMessage({ type: 'loading', loading: false });
+          const errorData = await response.json() as { error?: { message?: string } };
+          if (errorData?.error?.message) {
+            errorMessage = errorData.error.message;
+          }
+        } catch {
+          // ignore parse error
         }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json() as { result?: { data?: string }; data?: string };
+      
+      // tRPC wraps the response in a result object
+      const transformedPrompt = data?.result?.data ?? data?.data ?? String(data);
+      this._transformedPrompt = transformedPrompt;
+
+      this._view.webview.postMessage({
+        type: "result",
+        transformedPrompt: transformedPrompt,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      this._view.webview.postMessage({
+        type: "error",
+        message: `Transform failed: ${errorMessage}`,
+      });
+    } finally {
+      this._view.webview.postMessage({ type: "loading", loading: false });
     }
+  }
 
-    private async _copyToClipboard() {
-        if (this._transformedPrompt) {
-            await vscode.env.clipboard.writeText(this._transformedPrompt);
-            vscode.window.showInformationMessage('Copied to clipboard!');
-        } else {
-            vscode.window.showWarningMessage('No transformed prompt to copy.');
-        }
-    }
-
-    private async _sendToCopilot() {
-        if (!this._transformedPrompt) {
-            vscode.window.showWarningMessage('No transformed prompt to send.');
-            return;
-        }
-
-        try {
-            // Copy to clipboard first
-            await vscode.env.clipboard.writeText(this._transformedPrompt);
-            
-            // Try to open Copilot Chat and paste the prompt
-            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-            
-            // Small delay to ensure the chat panel is focused
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Execute paste command
-            await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
-            
-            vscode.window.showInformationMessage('Prompt sent to Copilot Chat!');
-        } catch (error) {
-            // Fallback: just copy to clipboard
-            vscode.window.showInformationMessage(
-                'Copied to clipboard! Please paste into Copilot Chat manually.',
-            );
-        }
-    }
-
-    private _postMessage(message: any) {
-        if (this._view) {
-            this._view.webview.postMessage(message);
-        }
-    }
-
-    public copyResult() {
-        this._copyToClipboard();
-    }
-
-    public sendToCopilot() {
-        this._sendToCopilot();
-    }
-
-    private _getHtmlForWebview(webview: vscode.Webview): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Squeeze</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
+  private _getHtmlForWebview(webview: vscode.Webview) {
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+      <title>Squeeze</title>
+      <style>
         * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 13px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-sideBar-background);
-            padding: 20px 16px;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          padding: 16px;
+          color: var(--vscode-foreground);
+          background-color: var(--vscode-sideBar-background);
+          line-height: 1.5;
+          overflow-x: hidden;
+          overflow-y: auto;
+          min-height: 100vh;
+        }
+        
+        .container {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          padding-bottom: 20px;
         }
         
         .header {
-            text-align: center;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));
+          text-align: center;
+          padding-bottom: 8px;
+          border-bottom: 1px solid var(--vscode-widget-border);
         }
         
         .header h1 {
-            font-size: 16px;
-            font-weight: 600;
-            letter-spacing: -0.3px;
-            margin-bottom: 4px;
+          font-size: 18px;
+          font-weight: 600;
+          margin-bottom: 4px;
+          letter-spacing: -0.3px;
         }
         
         .header p {
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-            font-weight: 400;
+          font-size: 12px;
+          opacity: 0.7;
         }
         
         .section {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
         
         .section-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--vscode-foreground);
-            opacity: 0.9;
-            letter-spacing: 0.01em;
+          font-size: 11px;
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          opacity: 0.8;
         }
         
-        textarea {
-            width: 100%;
-            min-height: 140px;
-            padding: 14px;
-            border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border-radius: 8px;
-            resize: vertical;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 13px;
-            line-height: 1.6;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        .slider-container {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
         }
         
-        textarea:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1);
+        .slider-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
         
-        textarea::placeholder {
-            color: var(--vscode-input-placeholderForeground);
-            opacity: 0.6;
+        .slider-value {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--vscode-textLink-foreground);
+          min-width: 32px;
+          text-align: right;
         }
         
-        .select-wrapper {
-            position: relative;
+        .slider {
+          width: 100%;
+          height: 6px;
+          border-radius: 3px;
+          background: var(--vscode-input-background);
+          outline: none;
+          -webkit-appearance: none;
+          appearance: none;
+          cursor: pointer;
         }
         
-        .select-wrapper::after {
-            content: '';
-            position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid var(--vscode-foreground);
-            opacity: 0.6;
-            pointer-events: none;
+        .slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: var(--vscode-button-background);
+          cursor: pointer;
+          border: 2px solid var(--vscode-button-foreground);
+          transition: transform 0.1s;
         }
         
-        select {
-            width: 100%;
-            padding: 12px 40px 12px 14px;
-            border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border-radius: 8px;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            appearance: none;
-            transition: border-color 0.2s ease;
+        .slider::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
         }
         
-        select:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
+        .slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: var(--vscode-button-background);
+          cursor: pointer;
+          border: 2px solid var(--vscode-button-foreground);
         }
         
-        select:hover {
-            border-color: var(--vscode-focusBorder);
+        .token-inputs {
+          display: flex;
+          gap: 10px;
+        }
+        
+        .token-input-group {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        
+        .token-input-label {
+          font-size: 10px;
+          opacity: 0.7;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        
+        .token-input {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid var(--vscode-input-border);
+          background-color: var(--vscode-input-background);
+          color: var(--vscode-input-foreground);
+          border-radius: 6px;
+          font-size: 13px;
+          font-family: 'Inter', sans-serif;
+          transition: border-color 0.2s;
+        }
+        
+        .token-input:focus {
+          outline: none;
+          border-color: var(--vscode-focusBorder);
+        }
+        
+        .token-input::placeholder {
+          opacity: 0.5;
+        }
+        
+        .api-key-container {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        
+        .api-key-input {
+          flex: 1;
+          min-width: 120px;
+          padding: 10px 12px;
+          border: 1px solid var(--vscode-input-border);
+          background-color: var(--vscode-input-background);
+          color: var(--vscode-input-foreground);
+          border-radius: 6px;
+          font-size: 13px;
+          font-family: 'Inter', sans-serif;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .api-key-input:focus {
+          outline: none;
+          border-color: var(--vscode-focusBorder);
+          box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1);
+        }
+        
+        .save-key-btn {
+          padding: 10px 12px;
+          background-color: var(--vscode-button-secondaryBackground);
+          color: var(--vscode-button-secondaryForeground);
+          border: none;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        
+        .save-key-btn:hover {
+          background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+        
+        .prompt-input {
+          width: 100%;
+          min-height: 100px;
+          padding: 12px;
+          border: 1px solid var(--vscode-input-border);
+          background-color: var(--vscode-input-background);
+          color: var(--vscode-input-foreground);
+          border-radius: 6px;
+          resize: vertical;
+          font-size: 13px;
+          font-family: 'Inter', sans-serif;
+          line-height: 1.5;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .prompt-input:focus {
+          outline: none;
+          border-color: var(--vscode-focusBorder);
+          box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1);
+        }
+        
+        .prompt-input::placeholder {
+          opacity: 0.5;
+        }
+        
+        .mode-select {
+          width: 100%;
+          padding: 10px 36px 10px 12px;
+          border: 1px solid var(--vscode-input-border);
+          background-color: var(--vscode-input-background);
+          color: var(--vscode-input-foreground);
+          border-radius: 6px;
+          font-size: 13px;
+          font-family: 'Inter', sans-serif;
+          cursor: pointer;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+        }
+        
+        .mode-select:focus {
+          outline: none;
+          border-color: var(--vscode-focusBorder);
+          box-shadow: 0 0 0 3px rgba(var(--vscode-focusBorder), 0.1);
         }
         
         .transform-btn {
-            width: 100%;
-            padding: 14px 20px;
-            background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-button-hoverBackground, var(--vscode-button-background)) 100%);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: transform 0.15s ease, opacity 0.15s ease;
+          width: 100%;
+          padding: 12px;
+          background: linear-gradient(135deg, var(--vscode-button-background), var(--vscode-button-hoverBackground));
+          color: var(--vscode-button-foreground);
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.3px;
+          flex-shrink: 0;
         }
         
-        .transform-btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-        
-        .transform-btn:active {
-            transform: translateY(0);
+        .transform-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         .transform-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        
+        .hint {
+          font-size: 11px;
+          opacity: 0.5;
+          text-align: center;
+          margin-top: -8px;
         }
         
         .result-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-height: 0;
+          display: none;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 8px;
+        }
+        
+        .result-container.visible {
+          display: flex !important;
         }
         
         .result-box {
-            flex: 1;
-            padding: 14px;
-            border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            border-radius: 8px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 13px;
-            line-height: 1.6;
-            min-height: 120px;
+          padding: 16px;
+          background-color: var(--vscode-textBlockQuote-background);
+          border: 1px solid var(--vscode-widget-border);
+          border-radius: 8px;
+          min-height: 120px;
+          font-size: 13px;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
         
         .result-box.empty {
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-            opacity: 0.6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0.5;
+          font-style: italic;
         }
         
-        .action-buttons {
-            display: flex;
-            gap: 10px;
+        .result-actions {
+          display: flex;
+          gap: 10px;
         }
         
         .action-btn {
-            flex: 1;
-            padding: 12px 16px;
-            border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-            border-radius: 8px;
-            cursor: pointer;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 12px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.15s ease;
+          flex: 1;
+          padding: 10px 8px;
+          border: 1px solid var(--vscode-button-border);
+          background-color: var(--vscode-button-secondaryBackground);
+          color: var(--vscode-button-secondaryForeground);
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-family: 'Inter', sans-serif;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         
-        .copy-btn {
-            background-color: transparent;
-            color: var(--vscode-foreground);
+        .action-btn:hover {
+          background-color: var(--vscode-button-secondaryHoverBackground);
+          transform: translateY(-1px);
         }
         
-        .copy-btn:hover {
-            background-color: var(--vscode-button-secondaryHoverBackground);
-            border-color: var(--vscode-focusBorder);
+        .action-btn.primary {
+          background: linear-gradient(135deg, var(--vscode-button-background), var(--vscode-button-hoverBackground));
+          color: var(--vscode-button-foreground);
+          border: none;
         }
         
-        .copilot-btn {
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border-color: transparent;
+        .error-message {
+          padding: 12px 14px;
+          background-color: var(--vscode-inputValidation-errorBackground);
+          border: 1px solid var(--vscode-inputValidation-errorBorder);
+          border-left: 3px solid var(--vscode-inputValidation-errorBorder);
+          border-radius: 6px;
+          font-size: 12px;
+          color: var(--vscode-errorForeground);
         }
         
-        .copilot-btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-        
-        .action-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid transparent;
-            border-top-color: currentColor;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .loading {
+          display: inline-block;
+          width: 14px;
+          height: 14px;
+          border: 2px solid transparent;
+          border-top-color: currentColor;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin-right: 8px;
+          vertical-align: middle;
         }
         
         @keyframes spin {
-            to { transform: rotate(360deg); }
+          to { transform: rotate(360deg); }
         }
-        
-        .warning {
-            font-size: 11px;
-            color: var(--vscode-editorWarning-foreground);
-            padding: 10px 12px;
-            background-color: var(--vscode-inputValidation-warningBackground);
-            border-radius: 6px;
-            border-left: 3px solid var(--vscode-editorWarning-foreground);
-        }
-        
-        .icon {
-            width: 14px;
-            height: 14px;
-            opacity: 0.9;
-        }
-        
-        .shortcut-hint {
-            font-size: 10px;
-            color: var(--vscode-descriptionForeground);
-            text-align: center;
-            opacity: 0.7;
-            margin-top: -8px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>✨ Squeeze</h1>
-        <p>Transform your prompts intelligently</p>
-    </div>
-    
-    <div class="section">
-        <label class="section-label">Your Prompt</label>
-        <textarea id="promptInput" placeholder="Enter your prompt here..."></textarea>
-    </div>
-    
-    <div class="section">
-        <label class="section-label">Transformation Mode</label>
-        <div class="select-wrapper">
-            <select id="modeSelect">
-                <option value="enhance">✨ Enhance — Make it more detailed</option>
-                <option value="xml">📋 XML — Structure with tags</option>
-                <option value="compress">🗜️ Compress — Make it concise</option>
-            </select>
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🍋 Squeeze</h1>
+          <p>Transform your prompts</p>
         </div>
-    </div>
-    
-    <div class="section">
-        <button class="transform-btn" id="transformBtn">
-            <span id="btnText">Transform Prompt</span>
-            <div class="spinner" id="spinner" style="display: none;"></div>
+        
+        <div class="section">
+          <label class="section-label">API Key</label>
+          <div class="api-key-container">
+            <input 
+              type="password" 
+              id="apiKey" 
+              class="api-key-input" 
+              placeholder="Enter your API key..."
+            />
+            <button class="save-key-btn" id="saveKeyBtn">Save</button>
+          </div>
+        </div>
+        
+        <div class="section">
+          <label class="section-label">Your Prompt</label>
+          <textarea 
+            id="promptInput" 
+            class="prompt-input" 
+            placeholder="Enter your prompt here..."
+          ></textarea>
+        </div>
+        
+        <div class="section">
+          <label class="section-label">Transformation Mode</label>
+          <select id="modeSelect" class="mode-select">
+            <option value="enhance">✨ Enhance — Make it more detailed</option>
+            <option value="xml">📋 XML — Structure with XML tags</option>
+            <option value="compress">🗜️ Compress — Make it concise</option>
+          </select>
+        </div>
+        
+        <div class="section">
+          <label class="section-label">Compression Settings</label>
+          <div class="slider-container">
+            <div class="slider-header">
+              <span class="token-input-label">Aggressiveness</span>
+              <span id="aggressivenessValue" class="slider-value">0.5</span>
+            </div>
+            <input 
+              type="range" 
+              id="aggressiveness" 
+              class="slider" 
+              min="0" 
+              max="1" 
+              step="0.1" 
+              value="0.5"
+            />
+          </div>
+          <div class="token-inputs">
+            <div class="token-input-group">
+              <label class="token-input-label">Min Tokens</label>
+              <input 
+                type="number" 
+                id="minTokens" 
+                class="token-input" 
+                placeholder="e.g. 100"
+                min="0"
+              />
+            </div>
+            <div class="token-input-group">
+              <label class="token-input-label">Max Tokens</label>
+              <input 
+                type="number" 
+                id="maxTokens" 
+                class="token-input" 
+                placeholder="e.g. 1000"
+                min="0"
+              />
+            </div>
+          </div>
+        </div>
+        
+        <button id="transformBtn" class="transform-btn">
+          Transform Prompt
         </button>
-        <div class="shortcut-hint">⌘/Ctrl + Enter</div>
-    </div>
-    
-    <div class="result-container">
-        <label class="section-label">Result</label>
-        <div class="result-box empty" id="resultBox">Your transformed prompt will appear here...</div>
-        <div class="warning" id="warning" style="display: none;"></div>
-        <div class="action-buttons">
-            <button class="action-btn copy-btn" id="copyBtn" disabled>
-                <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M4 4h8v8H4V4zm1 1v6h6V5H5zM2 2v8h1V3h7V2H2z"/>
-                </svg>
-                Copy
-            </button>
-            <button class="action-btn copilot-btn" id="copilotBtn" disabled>
-                <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM6.5 5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM8 11c-1.5 0-2.5-1-2.5-1h5s-1 1-2.5 1z"/>
-                </svg>
-                Send to Copilot
-            </button>
+        <p class="hint">⌘/Ctrl + Enter to transform</p>
+        
+        <div id="errorContainer" class="error-message" style="display: none;"></div>
+        
+        <div id="resultContainer" class="result-container">
+          <label class="section-label">Result</label>
+          <div id="resultBox" class="result-box empty">
+            Your transformed prompt will appear here
+          </div>
+          <div class="result-actions">
+            <button id="copyBtn" class="action-btn">📋 Copy</button>
+            <button id="copilotBtn" class="action-btn primary">🚀 Send to Copilot</button>
+          </div>
         </div>
-    </div>
-    
-    <script>
+      </div>
+      
+      <script>
         const vscode = acquireVsCodeApi();
         
-        let selectedMode = 'enhance';
-        let hasResult = false;
+        const apiKeyInput = document.getElementById('apiKey');
+        const saveKeyBtn = document.getElementById('saveKeyBtn');
+        const promptInput = document.getElementById('promptInput');
+        const modeSelect = document.getElementById('modeSelect');
+        const aggressivenessSlider = document.getElementById('aggressiveness');
+        const aggressivenessValue = document.getElementById('aggressivenessValue');
+        const minTokensInput = document.getElementById('minTokens');
+        const maxTokensInput = document.getElementById('maxTokens');
+        const transformBtn = document.getElementById('transformBtn');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultBox = document.getElementById('resultBox');
+        const copyBtn = document.getElementById('copyBtn');
+        const copilotBtn = document.getElementById('copilotBtn');
+        const errorContainer = document.getElementById('errorContainer');
         
-        // Mode selection via dropdown
-        document.getElementById('modeSelect').addEventListener('change', (e) => {
-            selectedMode = e.target.value;
+        let currentResult = '';
+        
+        // Load saved state
+        const state = vscode.getState();
+        if (state?.apiKey) {
+          apiKeyInput.value = state.apiKey;
+        }
+        if (state?.aggressiveness !== undefined) {
+          aggressivenessSlider.value = state.aggressiveness;
+          aggressivenessValue.textContent = state.aggressiveness;
+        }
+        if (state?.minTokens) {
+          minTokensInput.value = state.minTokens;
+        }
+        if (state?.maxTokens) {
+          maxTokensInput.value = state.maxTokens;
+        }
+        
+        // Update slider value display
+        aggressivenessSlider.addEventListener('input', (e) => {
+          aggressivenessValue.textContent = e.target.value;
+          vscode.setState({ ...vscode.getState(), aggressiveness: e.target.value });
         });
         
-        // Transform button
-        document.getElementById('transformBtn').addEventListener('click', () => {
-            const prompt = document.getElementById('promptInput').value;
-            vscode.postMessage({
-                type: 'transform',
-                prompt: prompt,
-                mode: selectedMode
-            });
+        saveKeyBtn.addEventListener('click', () => {
+          const apiKey = apiKeyInput.value.trim();
+          if (apiKey) {
+            vscode.setState({ ...vscode.getState(), apiKey: apiKey });
+            vscode.postMessage({ type: 'saveApiKey', apiKey: apiKey });
+          }
         });
         
-        // Copy button
-        document.getElementById('copyBtn').addEventListener('click', () => {
-            vscode.postMessage({ type: 'copy' });
+        transformBtn.addEventListener('click', transform);
+        
+        promptInput.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            transform();
+          }
         });
         
-        // Send to Copilot button
-        document.getElementById('copilotBtn').addEventListener('click', () => {
-            vscode.postMessage({ type: 'sendToCopilot' });
+        copyBtn.addEventListener('click', () => {
+          if (currentResult) {
+            vscode.postMessage({ type: 'copy', text: currentResult });
+          }
         });
         
-        // Handle messages from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            
-            switch (message.type) {
-                case 'loading':
-                    const transformBtn = document.getElementById('transformBtn');
-                    const btnText = document.getElementById('btnText');
-                    const spinner = document.getElementById('spinner');
-                    
-                    if (message.loading) {
-                        transformBtn.disabled = true;
-                        btnText.textContent = 'Transforming...';
-                        spinner.style.display = 'block';
-                    } else {
-                        transformBtn.disabled = false;
-                        btnText.textContent = 'Transform Prompt';
-                        spinner.style.display = 'none';
-                    }
-                    break;
-                    
-                case 'result':
-                    const resultBox = document.getElementById('resultBox');
-                    const warning = document.getElementById('warning');
-                    const copyBtn = document.getElementById('copyBtn');
-                    const copilotBtn = document.getElementById('copilotBtn');
-                    
-                    resultBox.textContent = message.result;
-                    resultBox.classList.remove('empty');
-                    
-                    if (message.warning) {
-                        warning.textContent = message.warning;
-                        warning.style.display = 'block';
-                    } else {
-                        warning.style.display = 'none';
-                    }
-                    
-                    hasResult = true;
-                    copyBtn.disabled = false;
-                    copilotBtn.disabled = false;
-                    break;
-            }
+        copilotBtn.addEventListener('click', () => {
+          if (currentResult) {
+            vscode.postMessage({ type: 'sendToCopilot', text: currentResult });
+          }
         });
         
-        // Allow Ctrl/Cmd+Enter to transform
-        document.getElementById('promptInput').addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                document.getElementById('transformBtn').click();
-            }
+        function transform() {
+          const prompt = promptInput.value.trim();
+          const mode = modeSelect.value;
+          const apiKey = apiKeyInput.value.trim();
+          const aggressiveness = parseFloat(aggressivenessSlider.value);
+          const minTokens = minTokensInput.value ? parseInt(minTokensInput.value) : null;
+          const maxTokens = maxTokensInput.value ? parseInt(maxTokensInput.value) : null;
+          
+          if (!apiKey) {
+            showError('Please enter your API key');
+            return;
+          }
+          
+          if (!prompt) {
+            showError('Please enter a prompt');
+            return;
+          }
+          
+          if (minTokens && maxTokens && minTokens > maxTokens) {
+            showError('Min tokens cannot be greater than max tokens');
+            return;
+          }
+          
+          hideError();
+          
+          // Save state
+          vscode.setState({ 
+            ...vscode.getState(), 
+            apiKey: apiKey,
+            aggressiveness: aggressivenessSlider.value,
+            minTokens: minTokensInput.value,
+            maxTokens: maxTokensInput.value
+          });
+          
+          vscode.postMessage({
+            type: 'transform',
+            prompt: prompt,
+            mode: mode,
+            apiKey: apiKey,
+            aggressiveness: aggressiveness,
+            minTokens: minTokens,
+            maxTokens: maxTokens
+          });
+        }
+        
+        function showError(message) {
+          errorContainer.textContent = message;
+          errorContainer.style.display = 'block';
+        }
+        
+        function hideError() {
+          errorContainer.style.display = 'none';
+        }
+        
+        window.addEventListener('message', (event) => {
+          const message = event.data;
+          
+          switch (message.type) {
+            case 'loading':
+              transformBtn.disabled = message.loading;
+              transformBtn.innerHTML = message.loading 
+                ? '<span class="loading"></span>Transforming...'
+                : 'Transform Prompt';
+              break;
+              
+            case 'result':
+              currentResult = message.transformedPrompt;
+              resultBox.textContent = currentResult;
+              resultBox.classList.remove('empty');
+              resultContainer.classList.add('visible');
+              hideError();
+              break;
+              
+            case 'error':
+              showError(message.message);
+              break;
+          }
         });
-    </script>
-</body>
-</html>`;
-    }
+      </script>
+    </body>
+    </html>`;
+  }
 }
