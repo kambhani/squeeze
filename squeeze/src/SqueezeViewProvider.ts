@@ -99,31 +99,56 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
     try {
       this._view.webview.postMessage({ type: "loading", loading: true });
 
-      const requestBody: Record<string, unknown> = {
-        apiKey: apiKey,
+      // Build the request payload matching the tRPC transform.publicCreate schema
+      const requestPayload: {
+        apiKey: string;
+        text: string;
+        scheme: string;
+        aggressiveness: number;
+        minTokens?: number;
+        maxTokens?: number;
+      } = {
+        apiKey: apiKey.trim(),
         text: prompt,
         scheme: mode,
         aggressiveness: aggressiveness,
       };
       
-      if (minTokens !== null) {
-        requestBody.minTokens = minTokens;
+      // Only include optional fields if they have values
+      if (minTokens !== null && minTokens > 0) {
+        requestPayload.minTokens = minTokens;
       }
-      if (maxTokens !== null) {
-        requestBody.maxTokens = maxTokens;
+      if (maxTokens !== null && maxTokens > 0) {
+        requestPayload.maxTokens = maxTokens;
       }
 
-      const response = await fetch(
-        `${backendUrl}/api/trpc/transform.publicCreate?input=${encodeURIComponent(
-          JSON.stringify(requestBody)
-        )}`
-      );
+      // tRPC query expects input as a JSON-encoded query parameter for GET requests
+      // or as a JSON body for POST requests (mutations)
+      // Using POST for the transform operation
+      const response = await fetch(`${backendUrl}/api/trpc/transform.publicCreate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          json: requestPayload
+        })
+      });
 
       if (!response.ok) {
         let errorMessage = `Request failed with status ${response.status}`;
         try {
-          const errorData = await response.json() as { error?: { message?: string } };
-          if (errorData?.error?.message) {
+          const errorData = await response.json() as { 
+            error?: { 
+              message?: string;
+              json?: {
+                message?: string;
+              }
+            } 
+          };
+          if (errorData?.error?.json?.message) {
+            errorMessage = errorData.error.json.message;
+          } else if (errorData?.error?.message) {
             errorMessage = errorData.error.message;
           }
         } catch {
@@ -132,10 +157,29 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         throw new Error(errorMessage);
       }
 
-      const data = await response.json() as { result?: { data?: string }; data?: string };
+      const data = await response.json() as { 
+        result?: { 
+          data?: {
+            json?: string;
+          } | string;
+        }; 
+        data?: string;
+      };
       
-      // tRPC wraps the response in a result object
-      const transformedPrompt = data?.result?.data ?? data?.data ?? String(data);
+      // tRPC wraps the response - handle both possible formats
+      let transformedPrompt: string;
+      if (data?.result?.data) {
+        if (typeof data.result.data === 'object' && 'json' in data.result.data) {
+          transformedPrompt = data.result.data.json as string;
+        } else {
+          transformedPrompt = data.result.data as string;
+        }
+      } else if (data?.data) {
+        transformedPrompt = data.data;
+      } else {
+        transformedPrompt = String(data);
+      }
+      
       this._transformedPrompt = transformedPrompt;
 
       this._view.webview.postMessage({
