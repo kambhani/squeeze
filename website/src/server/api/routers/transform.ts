@@ -6,6 +6,7 @@ import {
 	protectedProcedure,
 	publicProcedure,
 } from "~/server/api/trpc";
+import { db } from "~/server/db";
 
 enum Transformation {
 	ENHANCE = "enhance",
@@ -38,31 +39,24 @@ export const transformRouter = createTRPCRouter({
 			z.object({
 				text: z.string().min(1),
 				scheme: z.nativeEnum(Transformation),
-				aggressiveness: z.number().min(0).max(1).optional().default(0.5),
-				minTokens: z.number().positive().optional().nullable(),
-				maxTokens: z.number().positive().optional().nullable(),
-			})
+			}),
 		)
-		.query(async ({ input }) => {
-			console.log("=== PROTECTED TRANSFORM REQUEST ===");
-			console.log("Text:", input.text.substring(0, 100) + (input.text.length > 100 ? "..." : ""));
-			console.log("Scheme:", input.scheme);
-			console.log("Aggressiveness:", input.aggressiveness);
-			console.log("Min Tokens:", input.minTokens);
-			console.log("Max Tokens:", input.maxTokens);
-			console.log("===================================");
-
+		.query(async ({ ctx, input }) => {
 			return await transformInput(
 				input.text,
 				input.scheme,
-				input.aggressiveness,
-				input.minTokens ?? undefined,
-				input.maxTokens ?? undefined
+				ctx.session.user.id,
 			);
 		}),
 
 	publicCreate: publicProcedure
-		.input(TransformInputSchema)
+		.input(
+			z.object({
+				apiKey: z.string().min(1),
+				text: z.string().min(1),
+				scheme: z.nativeEnum(Transformation),
+			}),
+		)
 		.query(async ({ ctx, input }) => {
 			// Log incoming request for debugging
 			console.log("=== PUBLIC TRANSFORM REQUEST ===");
@@ -91,56 +85,17 @@ export const transformRouter = createTRPCRouter({
 				});
 			}
 
-			console.log("✅ API key valid for user:", user.email ?? user.id);
-			*/
-
-			console.log("⚠️ AUTH BYPASSED - Using mock data for testing");
-
-			// Return mock data for testing
-			const mockResponses: Record<string, string> = {
-				enhance: `[Enhanced Version]\n\n${input.text}\n\nPlease provide a comprehensive, detailed response with:\n- Step-by-step explanations\n- Relevant examples\n- Best practices and recommendations\n- Potential edge cases to consider`,
-				xml: `<prompt>\n  <context>User request for assistance</context>\n  <instruction>${input.text}</instruction>\n  <constraints>\n    <constraint>Be concise and accurate</constraint>\n    <constraint>Provide actionable guidance</constraint>\n  </constraints>\n  <output_format>Structured response</output_format>\n</prompt>`,
-				tokenc: input.text.split(' ').filter((word, i) => i % 2 === 0 || word.length > 3).join(' '),
-				lingua: input.text.replace(/\b(the|a|an|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|must|shall|can|need|dare|ought|used|to)\b/gi, '').replace(/\s+/g, ' ').trim(),
-			};
-
-			const compressed = mockResponses[input.scheme] || input.text;
-			const inputTokens = Math.ceil(input.text.length / 4);
-			const outputTokens = Math.ceil(compressed.length / 4);
-
-			console.log("✅ Mock response generated");
-			console.log(`   Input tokens: ${inputTokens}, Output tokens: ${outputTokens}`);
-
-			return {
-				compressed,
-				input_tokens: inputTokens,
-				output_tokens: outputTokens,
-			};
+			return await transformInput(input.text, input.scheme, user.id);
 		}),
 });
 
 const transformInput = async (
 	text: string,
 	scheme: Transformation,
-	aggressiveness: number = 0.5,
-	minTokens?: number,
-	maxTokens?: number,
+	userId: string,
 ): Promise<CompressionOutput> => {
 	try {
-		const requestBody = {
-			text,
-			scheme,
-			aggressiveness,
-			min_tokens: minTokens,
-			max_tokens: maxTokens,
-		};
-
-		console.log("=== CALLING BACKEND ===");
-		console.log("URL: http://localhost:5000/transform");
-		console.log("Body:", JSON.stringify(requestBody, null, 2));
-		console.log("=======================");
-
-		const response = await fetch("http://localhost:5000/transform", {
+		const response = await fetch("http://localhost:5001/transform", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -161,6 +116,15 @@ const transformInput = async (
 
 		// Validate the response conforms to CompressionOutput type
 		const validatedData = CompressionOutputSchema.parse(data);
+
+		// Save query to database
+		await db.query.create({
+			data: {
+				userId,
+				inputTokens: validatedData.input_tokens,
+				outputTokens: validatedData.output_tokens,
+			},
+		});
 
 		return validatedData;
 	} catch (error) {

@@ -2,8 +2,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from lingua import LinguaCompressor
-from tokenc import TokenCompressor
-from utils import get_compression_stats
+from token_compressor import TokenCompressor
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -59,4 +60,4 @@ def compress_text():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5001)

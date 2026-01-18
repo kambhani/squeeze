@@ -24,7 +24,7 @@ export default function DemoPage() {
 	const [transformation, setTransformation] = useState<"tokenc" | "lingua">("tokenc");
 	const [shouldFetch, setShouldFetch] = useState(false);
 
-	const { data, isLoading, error, refetch } = api.transform.protectedCreate.useQuery(
+	const { data, isLoading, error } = api.transform.protectedCreate.useQuery(
 		(shouldFetch && prompt.length > 0
 			? {
 					text: prompt,
@@ -53,7 +53,6 @@ export default function DemoPage() {
 	const handleExecute = () => {
 		if (prompt.trim().length === 0) return;
 		setShouldFetch(true);
-		void refetch();
 	};
 
 	const resultText = isLoading
