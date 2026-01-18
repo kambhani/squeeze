@@ -78,6 +78,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
       aggressiveness?: number;
       minTokens?: number | null;
       maxTokens?: number | null;
+      rate?: number;
     }
   ) {
     if (!this._view) {
@@ -108,6 +109,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           aggressiveness?: number;
           minTokens?: number;
           maxTokens?: number;
+          rate?: number;
         };
       } = {
         apiKey: apiKey.trim(),
@@ -126,6 +128,14 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         }
         if (compressionData.maxTokens !== null && compressionData.maxTokens !== undefined && compressionData.maxTokens > 0) {
           requestPayload.data.maxTokens = compressionData.maxTokens;
+        }
+      }
+      
+      // Only include data object for lingua mode
+      if (mode === 'lingua' && compressionData) {
+        requestPayload.data = {};
+        if (compressionData.rate !== undefined) {
+          requestPayload.data.rate = compressionData.rate;
         }
       }
 
@@ -277,6 +287,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          margin-bottom: 8px;
         }
         
         .slider-header {
@@ -663,6 +674,25 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           </div>
         </div>
         
+        <div class="section" id="linguaSettings" style="display: none;">
+          <label class="section-label">Lingua Settings</label>
+          <div class="slider-container">
+            <div class="slider-header">
+              <span class="token-input-label">Rate</span>
+              <span id="rateValue" class="slider-value">0.5</span>
+            </div>
+            <input 
+              type="range" 
+              id="rate" 
+              class="slider" 
+              min="0" 
+              max="1" 
+              step="0.1" 
+              value="0.5"
+            />
+          </div>
+        </div>
+        
         <button id="transformBtn" class="transform-btn">
           Transform Prompt
         </button>
@@ -693,6 +723,8 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         const aggressivenessValue = document.getElementById('aggressivenessValue');
         const minTokensInput = document.getElementById('minTokens');
         const maxTokensInput = document.getElementById('maxTokens');
+        const rateSlider = document.getElementById('rate');
+        const rateValueDisplay = document.getElementById('rateValue');
         const transformBtn = document.getElementById('transformBtn');
         const resultContainer = document.getElementById('resultContainer');
         const resultBox = document.getElementById('resultBox');
@@ -717,29 +749,38 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
         if (state?.maxTokens) {
           maxTokensInput.value = state.maxTokens;
         }
+        if (state?.rate !== undefined) {
+          rateSlider.value = state.rate;
+          rateValueDisplay.textContent = state.rate;
+        }
         
         const compressionSettings = document.getElementById('compressionSettings');
+        const linguaSettings = document.getElementById('linguaSettings');
         
-        // Show/hide compression settings based on mode
-        function updateCompressionSettingsVisibility() {
+        // Show/hide mode-specific settings based on selected mode
+        function updateSettingsVisibility() {
           const mode = modeSelect.value;
-          if (mode === 'tokenc') {
-            compressionSettings.style.display = 'block';
-          } else {
-            compressionSettings.style.display = 'none';
-          }
+          // Show compression settings only for tokenc
+          compressionSettings.style.display = mode === 'tokenc' ? 'block' : 'none';
+          // Show lingua settings only for lingua
+          linguaSettings.style.display = mode === 'lingua' ? 'block' : 'none';
         }
         
         // Initialize visibility
-        updateCompressionSettingsVisibility();
+        updateSettingsVisibility();
         
         // Listen for mode changes
-        modeSelect.addEventListener('change', updateCompressionSettingsVisibility);
+        modeSelect.addEventListener('change', updateSettingsVisibility);
         
         // Update slider value display
         aggressivenessSlider.addEventListener('input', (e) => {
           aggressivenessValue.textContent = e.target.value;
           vscode.setState({ ...vscode.getState(), aggressiveness: e.target.value });
+        });
+        
+        rateSlider.addEventListener('input', (e) => {
+          rateValueDisplay.textContent = e.target.value;
+          vscode.setState({ ...vscode.getState(), rate: e.target.value });
         });
         
         saveKeyBtn.addEventListener('click', () => {
@@ -777,6 +818,7 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
           const aggressiveness = parseFloat(aggressivenessSlider.value);
           const minTokens = minTokensInput.value ? parseInt(minTokensInput.value) : null;
           const maxTokens = maxTokensInput.value ? parseInt(maxTokensInput.value) : null;
+          const rate = parseFloat(rateSlider.value);
           
           if (!apiKey) {
             showError('Please enter your API key');
@@ -801,7 +843,8 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
             apiKey: apiKey,
             aggressiveness: aggressivenessSlider.value,
             minTokens: minTokensInput.value,
-            maxTokens: maxTokensInput.value
+            maxTokens: maxTokensInput.value,
+            rate: rateSlider.value
           });
           
           // Build the message payload
@@ -818,6 +861,13 @@ export class SqueezeViewProvider implements vscode.WebviewViewProvider {
               aggressiveness: aggressiveness,
               minTokens: minTokens,
               maxTokens: maxTokens
+            };
+          }
+          
+          // Only include data object with rate for lingua
+          if (mode === 'lingua') {
+            payload.data = {
+              rate: rate
             };
           }
           
