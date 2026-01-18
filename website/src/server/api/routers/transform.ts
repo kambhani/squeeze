@@ -7,6 +7,7 @@ import {
 	publicProcedure,
 } from "~/server/api/trpc";
 import { db } from "~/server/db";
+import { env } from "~/env";
 
 enum Transformation {
 	TOKENC = "tokenc",
@@ -87,7 +88,7 @@ const transformInput = async (
 			requestBody.data = data;
 		}
 
-		const response = await fetch("http://localhost:5001/transform", {
+		const response = await fetch(`${env.SERVER_URL}/transform`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
