@@ -1,10 +1,36 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import tiktoken
 
 from lingua import LinguaCompressor
 from token_compressor import TokenCompressor
 from dotenv import load_dotenv
 load_dotenv()
+
+
+def get_compression_stats(original: str, compressed: str, model: str = "gpt-4") -> dict:
+    """
+    Calculate compression statistics between original and compressed text.
+
+    Args:
+        original: Original text
+        compressed: Compressed text
+        model: Model to use for token counting
+
+    Returns:
+        Dictionary with compression statistics
+    """
+    enc = tiktoken.encoding_for_model(model)
+    orig_tokens = len(enc.encode(original))
+    comp_tokens = len(enc.encode(compressed))
+
+    return {
+        "original_tokens": orig_tokens,
+        "compressed_tokens": comp_tokens,
+        "tokens_saved": orig_tokens - comp_tokens,
+        "compression_ratio": comp_tokens / orig_tokens if orig_tokens > 0 else 1.0,
+        "percentage_saved": (1 - comp_tokens / orig_tokens) * 100 if orig_tokens > 0 else 0.0
+    }
 
 app = Flask(__name__)
 CORS(app)
