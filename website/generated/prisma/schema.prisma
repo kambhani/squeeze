@@ -8,23 +8,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-  // Further reading:
-  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
   url      = env("DATABASE_URL")
-}
-
-model Post {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  createdBy   User   @relation(fields: [createdById], references: [id])
-  createdById String
-
-  @@index([name])
 }
 
 // Necessary for Next auth
@@ -61,9 +45,10 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  apiKey        String?
   accounts      Account[]
   sessions      Session[]
-  posts         Post[]
+  queries       Query[]
 }
 
 model VerificationToken {
@@ -72,4 +57,13 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Query {
+  id           String   @id @default(cuid())
+  userId       String
+  time         DateTime @default(now())
+  inputTokens  Int
+  outputTokens Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
