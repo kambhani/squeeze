@@ -1,15 +1,24 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "~/components/ui/table";
 import { auth } from "~/server/auth";
+import { api } from "~/trpc/server";
 
 export default async function AccountPage() {
 	const session = await auth();
 
 	if (!session?.user) {
-		
 		redirect("/");
 	}
+
+	const queries = await api.query.getQueries();
 
 	return (
 		<main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-16 text-white">
@@ -23,6 +32,40 @@ export default async function AccountPage() {
 				{session.user.email ? (
 					<p className="text-white/70">{session.user.email}</p>
 				) : null}
+			</div>
+
+			<h1 className="text-2xl font-semibold">Queries</h1>
+
+			<div className="rounded-2xl border border-white/10 bg-white/5">
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Date</TableHead>
+							<TableHead>Input Tokens</TableHead>
+							<TableHead>Output Tokens</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{queries?.length ? (
+							queries.map((query) => (
+								<TableRow key={query.id}>
+									<TableCell>{query.time.toLocaleString()}</TableCell>
+									<TableCell>{query.inputTokens}</TableCell>
+									<TableCell>{query.outputTokens}</TableCell>
+								</TableRow>
+							))
+						) : (
+							<TableRow>
+								<TableCell
+									colSpan={3}
+									className="text-center text-white/60"
+								>
+									No queries yet.
+								</TableCell>
+							</TableRow>
+						)}
+					</TableBody>
+				</Table>
 			</div>
 		</main>
 	);
