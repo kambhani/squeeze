@@ -173,7 +173,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\cgera\\Coding\\Extensions\\squeeze\\website\\generated\\prisma",
+      "value": "/Users/AnishKambhampati/Documents/GitHub.nosync/squeeze/website/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -182,12 +182,12 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "windows",
+        "value": "darwin-arm64",
         "native": true
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\cgera\\Coding\\Extensions\\squeeze\\website\\prisma\\schema.prisma",
+    "sourceFilePath": "/Users/AnishKambhampati/Documents/GitHub.nosync/squeeze/website/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
