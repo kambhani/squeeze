@@ -1,71 +1,62 @@
-# squeeze README
+# Squeeze VS Code Extension
 
-This is the README for your extension "squeeze". After writing up a brief description, we recommend including the following sections.
+A VS Code sidebar extension that compresses prompts using TokenC or LLMLingua to reduce input token costs when working with AI tools.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- Sidebar panel for entering and compressing prompts
+- Two compression modes: TokenC (aggressiveness, min/max tokens) and LLMLingua (rate)
+- Copy compressed result to clipboard
+- Send compressed result directly to GitHub Copilot chat
+- Configurable backend URL and API key via VS Code settings
+- Keyboard shortcut: `Ctrl/Cmd + Enter` to trigger compression
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `squeeze.backendUrl` | URL of the Squeeze backend server | `http://localhost:3000` |
+| `squeeze.apiKey` | API key for authentication (generated from the website account page) | — |
 
-For example:
+## Source Files
 
-This extension contributes the following settings:
+- **`src/extension.ts`** — Entry point. Registers the `SqueezeViewProvider` as a sidebar webview and three commands: `squeeze.transformPrompt`, `squeeze.copyToClipboard`, and `squeeze.sendToCopilot`.
+- **`src/SqueezeViewProvider.ts`** — Implements the sidebar UI and compression logic. Renders an HTML/CSS/JS webview with a prompt input, mode selector, parameter controls, and result display. On submit, sends a `POST` request to the backend's `/api/transform` endpoint with the API key, text, scheme, and optional parameters. Handles clipboard copy and Copilot integration.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Development
 
-## Known Issues
+```bash
+npm install
+npm run compile   # Compile TypeScript
+npm run lint      # Run ESLint
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+Press `F5` in VS Code to launch the extension in a development host window.
 
-## Release Notes
+## API
 
-Users appreciate release notes as you update your extension.
+The extension calls `POST {backendUrl}/api/transform` with the following JSON body:
 
-### 1.0.0
+```json
+{
+  "apiKey": "string",
+  "text": "string",
+  "scheme": "tokenc" | "lingua",
+  "data": {
+    "aggressiveness": 0.5,
+    "minTokens": null,
+    "maxTokens": null,
+    "rate": 0.5
+  }
+}
+```
 
-Initial release of ...
+Response:
 
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+```json
+{
+  "compressed": "string",
+  "input_tokens": 100,
+  "output_tokens": 50
+}
+```
