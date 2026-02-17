@@ -1,29 +1,87 @@
-# Create T3 App
+# Squeeze Website
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A full-stack Next.js web application built with the [T3 Stack](https://create.t3.gg/) (Next.js 15 + tRPC + Prisma). Provides user authentication, API key management, an interactive compression demo, and query history with token savings metrics.
 
-## What's next? How do I make an app with this?
+## Tech Stack
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- **Framework:** [Next.js 15](https://nextjs.org) (App Router)
+- **API Layer:** [tRPC](https://trpc.io) (type-safe RPC)
+- **Database:** PostgreSQL via [Prisma](https://prisma.io) ORM
+- **Authentication:** [NextAuth v5](https://next-auth.js.org) with Discord OAuth
+- **Styling:** [Tailwind CSS 4](https://tailwindcss.com), [Radix UI](https://www.radix-ui.com/) components
+- **Animations:** [Motion](https://motion.dev/)
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Database Schema
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+Defined in `prisma/schema.prisma`:
 
-## Learn More
+| Model | Purpose |
+|-------|---------|
+| **User** | User profile with optional `apiKey` for extension auth |
+| **Query** | Compression history record: `inputTokens`, `outputTokens`, `time` |
+| **Account** | OAuth provider accounts (Discord) linked to User |
+| **Session** | Active login sessions |
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+## Pages
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+| Route | Auth | Description |
+|-------|------|-------------|
+| `/` | No | Home page with animated hero and global compression stats |
+| `/login` | No | Discord OAuth sign-in |
+| `/account` | Yes | User profile, API key generation, query history table, and cost savings |
+| `/demo` | Yes | Interactive compression demo with input/output panels |
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+## tRPC Routers
 
-## How do I deploy this?
+Located in `src/server/api/routers/`:
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+- **`transform.ts`** — Two endpoints for text compression:
+  - `protectedCreate` — Authenticated via session; compresses text by forwarding to the Flask server, saves a `Query` record.
+  - `publicCreate` — Authenticated via API key; same flow, used by the VS Code extension.
+- **`query.ts`** — Query history and stats:
+  - `getQueries` — Returns all queries for the logged-in user.
+  - `getUserTotals` — Aggregated input/output token totals for the user.
+  - `getTotals` — Global stats: total queries, total input/output tokens.
+- **`user.ts`** — API key management:
+  - `getApiKey` — Returns the user's API key.
+  - `updateApiKey` — Generates a new UUID v4 API key.
+
+## Components
+
+Located in `src/components/`:
+
+- **`navbar.tsx`** — Navigation bar with links and user menu
+- **`hero.tsx`** — Animated landing page hero with global stats
+- **`login-options.tsx`** — Discord sign-in button
+- **`user-menu.tsx`** — Dropdown with account link and logout
+- **`ui/`** — Radix UI wrappers: button, textarea, select, table, alert-dialog, dropdown-menu
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in:
+
+| Variable | Description |
+|----------|-------------|
+| `AUTH_SECRET` | NextAuth secret (generate with `npx auth secret`) |
+| `AUTH_DISCORD_ID` | Discord OAuth application ID |
+| `AUTH_DISCORD_SECRET` | Discord OAuth application secret |
+| `DATABASE_URL` | PostgreSQL connection URL |
+| `SERVER_URL` | URL of the Flask compression server (e.g., `http://localhost:5001`) |
+
+## Development
+
+```bash
+npm install
+cp .env.example .env    # Fill in credentials
+npx prisma db push      # Create/update database tables
+npm run dev             # Start dev server (port 3000)
+```
+
+Other commands:
+
+```bash
+npm run build           # Production build
+npm run db:push         # Push schema changes
+npm run db:studio       # Open Prisma Studio
+npm run lint            # Run Biome linter
+```
